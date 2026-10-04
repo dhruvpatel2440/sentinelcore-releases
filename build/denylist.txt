@@ -23,7 +23,6 @@ tests
 */tests/*
 pytest.ini
 scripts/smoke_*.py
-scripts/e2e_*.py
 
 # Internal docs / notes (never customer-facing)
 CLAUDE.md

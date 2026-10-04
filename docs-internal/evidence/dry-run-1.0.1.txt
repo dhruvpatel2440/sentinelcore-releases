@@ -4,7 +4,7 @@
 == SentinelCore installer ==
 version: dev (dev build)
 This installs the SentinelCore stack (Docker Compose) on this host.
-Notice: lab/authorized-network use only. No telemetry. Log: /c/Users/Dhruv/AppData/Local/Temp/sc-dry.log
+Notice: lab/authorized-network use only. No telemetry. Log: /tmp/sc-dry.log
 
 == Verify package ==
 ! no SHA256SUMS (dev tree) — skipping integrity check
@@ -15,18 +15,19 @@ Notice: lab/authorized-network use only. No telemetry. Log: /c/Users/Dhruv/AppDa
 ✓ sudo available (will prompt for privileged steps)
 ✓ CPU: 12 cores (min 4)
 ! RAM: 7876 MB — below minimum 8000 MB
-✓ disk: 167 GB free on / (min 40)
+✓ disk: 166 GB free on / (recommended 40)
 ✓ internet reachable (download.docker.com)
 ! [dry-run] one or more REQUIRED checks would fail on a real install
 [dry-run] continuing to preview remaining steps
 
 == Dependencies ==
+! [dry-run] distribution not detected here — previewing the Ubuntu 24.04 (noble) steps
 ! Docker Engine and/or the compose plugin are not installed.
 SentinelCore runs entirely as Docker containers; this is required.
 [dry-run] as_root install -m 0755 -d /etc/apt/keyrings
 [dry-run] as_root curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 [dry-run] as_root chmod a+r /etc/apt/keyrings/docker.asc
-[dry-run] write /etc/apt/sources.list.d/docker.list (deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu <codename> stable)
+[dry-run] write /etc/apt/sources.list.d/docker.list: deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable
 [dry-run] as_root apt-get update
 [dry-run] as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 [dry-run] as_root systemctl enable --now docker
@@ -43,13 +44,16 @@ helper (nmap discovery, firewall containment) on 'enp0s8'.
 
 == Configuration ==
 email notifications: enabled (via relay https://relay.sentinelcore.app)
+! bind 0.0.0.0 exposes the web UI on ALL interfaces.
+! recommended: restrict it, e.g. 'sudo ufw allow from <admin-subnet> to any port 8443 proto tcp'.
 
 == Validate inputs ==
 ! ss not found — cannot check whether port 8080 is free
+! ss not found — cannot check whether port 8443 is free
 ✓ inputs valid
 
 == Email relay registration ==
-registering with relay https://relay.sentinelcore.app (admin: admin@example.org, install: sc-da083d25a6da-285294f5)
+registering with relay https://relay.sentinelcore.app (admin: admin@example.org, install: sc-da083d25a6da-db960133)
 [dry-run] GET  https://relay.sentinelcore.app/v1/health (unreachable -> continue with email off)
 [dry-run] POST https://relay.sentinelcore.app/v1/register {admin_email, install_id, version} -> {token, sender_address}
 [dry-run] relay emails a verification link to admin@example.org; sending is refused until it is clicked
@@ -69,15 +73,16 @@ registering with relay https://relay.sentinelcore.app (admin: admin@example.org,
     CAPTURE_INTERFACE=<set>
     MONITORED_NETWORK=<set>
     PROTECTED_IPS=<set>
+    TLS_MODE=<set>
     BIND_ADDRESS=<set>
-    WEB_PORT=<set>
+    HTTP_PORT=<set>
+    HTTPS_PORT=<set>
     TZ=<set>
     SURICATA_EVE_LOG=<set>
     REDIS_URL=<set>
     EVENT_RETENTION_DAYS=<set>
     ENVIRONMENT=<set>
     EMAIL_MODE=<set>
-    COMPOSE_PROFILES=<set>
     RELAY_URL=<set>
     RELAY_INSTALL_ID=<set>
     BREVO_API_KEY=<set>
@@ -90,20 +95,21 @@ registering with relay https://relay.sentinelcore.app (admin: admin@example.org,
     EMAIL_GLOBAL_DAILY_CAP=<set>
     EMAIL_MAX_ATTACHMENT_MB=<set>
     BREVO_WEBHOOK_SECRET=<set>
-    SSL_CERT_FILE=<set>
-    REQUESTS_CA_BUNDLE=<set>
-    CURL_CA_BUNDLE=<set>
 
 == Stage install directory (/opt/sentinelcore) ==
 ! [dry-run] capture interface 'enp0s8' not present here
+[dry-run] (dev tree: suricata.yaml.template is generated from main's suricata.yaml by build-release.sh)
 [dry-run] mkdir -p /opt/sentinelcore (0755)
-[dry-run] render docker-compose.yml with image tag :dev (from VERSION)
-[dry-run] render suricata.yaml: HOME_NET=[10.20.0.0/24], af-packet interface=enp0s8
-[dry-run] copy nginx.release.conf, frontend-dist/, ca-bundle.pem (system roots), uninstall.sh, enable-email.sh, lib/
+[dry-run] docker-compose.yml (image tag :dev from VERSION)
+[dry-run] + docker-compose.tls.yml (0.0.0.0:8443->443, tls-web/ mount)
+[dry-run] + docker-compose.email.yml (relay-shim, ca-bundle.pem, SSL_CERT_FILE)
+[dry-run] nginx.conf from nginx-tls.conf.template (TLS_MODE=self-signed)
+[dry-run] suricata.yaml: HOME_NET=[10.20.0.0/24], af-packet interface=enp0s8
+[dry-run] copy frontend-dist/, rules/, bin/, lib/, uninstall.sh, enable-email.sh, disable-email.sh
 
 == Load Docker images ==
 [dry-run] docker load -i images/sentinelcore-images-dev.tar.gz
-[dry-run] check every image in docker-compose.yml is present (docker image inspect)
+[dry-run] verify every image id against images/IMAGES.txt and every compose image is present
 [dry-run] write /etc/systemd/system/sentinelcore-promisc.service and 'systemctl enable --now sentinelcore-promisc.service'
     [Unit]
     Description=SentinelCore: promiscuous capture on enp0s8
@@ -120,6 +126,11 @@ registering with relay https://relay.sentinelcore.app (admin: admin@example.org,
     [Install]
     WantedBy=multi-user.target
 
+== HTTPS for the web UI (TLS_MODE=self-signed) ==
+[dry-run] openssl in a private mktemp dir: Web CA key+cert, server key+CSR, sign (825 days)
+[dry-run]   SAN = DNS:localhost,IP:127.0.0.1
+[dry-run] install /opt/sentinelcore/tls-web/server.{crt,key} (dir 700, key 600); /opt/sentinelcore/tls-web-ca.crt (0644); shred the CA key
+
 == Install-local mail CA + shim certificate ==
 [dry-run] openssl in a private mktemp dir: CA key+cert, leaf key+CSR for CN/SAN=api.brevo.com, sign
 [dry-run] install leaf -> /opt/sentinelcore/tls/api.brevo.com.{crt,key} (dir 700, key 600, owner uid 1000)
@@ -132,7 +143,7 @@ registering with relay https://relay.sentinelcore.app (admin: admin@example.org,
 [dry-run] poll docker inspect .State.Health.Status for: db redis (all must be 'healthy', timeout 300s)
 
 == Create administrator (one-time seed, before first backend start) ==
-[dry-run] SEED_ADMIN_PASSWORD=<redacted> docker compose run --rm --no-deps -e SEED_ADMIN_PASSWORD backend python -m scripts.seed_admin
+[dry-run] SEED_ADMIN_PASSWORD=<redacted> docker compose run --rm --no-deps -e SEED_ADMIN_PASSWORD -e SEED_ADMIN_USERNAME backend python -c 'print("[bootstrap] done")'
 [dry-run]   (entrypoint: wait for db -> alembic upgrade head -> seed admin 'admin')
 
 == Start services ==
@@ -142,7 +153,16 @@ registering with relay https://relay.sentinelcore.app (admin: admin@example.org,
 [dry-run] poll docker inspect .State.Health.Status for: db redis helper backend worker nginx relay-shim (all must be 'healthy', timeout 300s)
 
 == Verify admin login ==
-[dry-run] POST http://127.0.0.1:8080/api/auth/login (JSON on stdin) — expect HTTP 200
+[dry-run] POST https://127.0.0.1:8443/api/auth/login (JSON on stdin) — expect HTTP 200 and a Secure; HttpOnly; Path=/api/auth refresh cookie
+
+== Load detection rules (bundled ET Open) ==
+[dry-run] sha256sum -c rules/sentinelcore.rules.sha256
+[dry-run] backend: app.services.ruleset.deploy(<bundle>) = main's stage -> helper suricata_write_rules (suricata -T, up to 1200s; rollback on failure) -> reload
+
+== Start the Suricata sensor on enp0s8 ==
+[dry-run] backend: helper_client.call('suricata_start') — same op as POST /api/sensor/start
+[dry-run] wait up to 90 s for eve.json (suricata_status.eve_log_age_seconds)
+rules update skipped — admins can update any time: Sensor → Rules → Update
 
 == Enable on boot (systemd) ==
 [dry-run] write /etc/systemd/system/sentinelcore.service and 'systemctl enable sentinelcore.service'
@@ -156,27 +176,42 @@ registering with relay https://relay.sentinelcore.app (admin: admin@example.org,
     Type=oneshot
     RemainAfterExit=yes
     WorkingDirectory=/opt/sentinelcore
-    ExecStart=/usr/bin/docker compose -f /opt/sentinelcore/docker-compose.yml --env-file /opt/sentinelcore/.env up -d
-    ExecStop=/usr/bin/docker compose -f /opt/sentinelcore/docker-compose.yml --env-file /opt/sentinelcore/.env stop
+    ExecStart=/usr/bin/docker compose -f /opt/sentinelcore/docker-compose.yml -f /opt/sentinelcore/docker-compose.tls.yml -f /opt/sentinelcore/docker-compose.email.yml --env-file /opt/sentinelcore/.env up -d
+    # Start the Suricata sensor once the helper is healthy (non-fatal).
+    ExecStartPost=-/opt/sentinelcore/bin/sensor-start.sh --wait
+    ExecStop=/usr/bin/docker compose -f /opt/sentinelcore/docker-compose.yml -f /opt/sentinelcore/docker-compose.tls.yml -f /opt/sentinelcore/docker-compose.email.yml --env-file /opt/sentinelcore/.env stop
     TimeoutStartSec=0
     
     [Install]
     WantedBy=multi-user.target
+nightly backups off — run sudo /opt/sentinelcore/bin/backup.sh any time
 
 == Installation complete ==
   SentinelCore dev is installed.
 
   ✓ dependencies   Docker Engine + compose
-  ✓ database       PostgreSQL (container)
+  ✓ database       PostgreSQL (container, loopback 127.0.0.1:5433 only)
   ✓ sensors        Suricata + helper on enp0s8
   ✓ environment    /opt/sentinelcore/.env (mode 600)
   ✓ services       all healthy
+  web UI           https://127.0.0.1:8443  (TLS: self-signed, bound to 0.0.0.0)
   email            brevo
-  web UI bound to  127.0.0.1:8080
 
   Admin user  : admin
   Admin password : the one you chose (verified by a test login)
 
-  Open SentinelCore:  http://127.0.0.1:8080
-  Logs            :  /c/Users/Dhruv/AppData/Local/Temp/sc-dry.log  and  sudo docker compose -f /opt/sentinelcore/docker-compose.yml logs
+  Your browser will warn about the certificate until you trust this
+  install's Web CA (once per computer):
+    CA file  : /opt/sentinelcore/tls-web-ca.crt   (fingerprint below)
+    Ubuntu   : sudo cp /opt/sentinelcore/tls-web-ca.crt /usr/local/share/ca-certificates/sentinelcore-web.crt && sudo update-ca-certificates
+    Chrome   : Settings > Privacy and security > Security > Manage certificates > Authorities > Import
+    Firefox  : Settings > Privacy & Security > Certificates > View Certificates > Authorities > Import
+  (fingerprint unavailable)
+  Full guide: docs/HTTPS.md
+
+  Email on/off    :  sudo /opt/sentinelcore/enable-email.sh  |  sudo /opt/sentinelcore/disable-email.sh
+  Backup / restore:  sudo /opt/sentinelcore/bin/backup.sh    |  sudo /opt/sentinelcore/bin/restore.sh <archive>
+  Logs            :  /tmp/sc-dry.log  and  sudo docker compose -f /opt/sentinelcore/docker-compose.yml logs
+  Upgrade         :  unzip the new release and run its sudo ./install.sh  (choose Upgrade)
   Uninstall       :  sudo /opt/sentinelcore/uninstall.sh   (add --purge to remove data)
+! the UI listens on all interfaces — restrict it with a host firewall to your admin network.

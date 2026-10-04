@@ -1,0 +1,20 @@
+CSP browser check (Phase 11.2) — 2026-10-04
+===========================================
+What: main's BUILT frontend (Sentinelcore-main/frontend/dist, read-only) served by a
+local test server that sends the release nginx headers verbatim:
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self';
+    img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';
+    frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy: no-referrer
+Browser: Claude desktop built-in Chromium pane, http://127.0.0.1:4400/login
+
+Result:
+  - Login page renders fully styled (486 CSS rules applied, "Space Grotesk" font loaded).
+  - 0 <style> tags, 0 elements with style="" attributes at runtime.
+  - Console: no CSP violation. The single error is the expected 501 from the static
+    test server for POST /api/auth/refresh (there is no backend behind it).
+  - Bundle scan: no eval / new Function / document.write / setAttribute("style") /
+    insertRule; the 3 innerHTML hits are React-DOM internals (no
+    dangerouslySetInnerHTML in main's src/).
+Limit: pages behind login need a running backend — covered by main's browser e2e
+suite (53 checks) on the installed stack (tests/parity, NOT RUN here: no Docker).

@@ -56,6 +56,8 @@ case "$flavor" in
         if [ -e "$PKGROOT/images/NO_IMAGES.txt" ]; then note "images/NO_IMAGES.txt present in a real release"; else ok "no NO_IMAGES.txt"; fi
         if [ -s "$PKGROOT/images/sentinelcore-images-$pkg_version.tar.gz" ]; then ok "image tarball present"; else note "images/sentinelcore-images-$pkg_version.tar.gz missing"; fi
         if [ -s "$PKGROOT/templates/frontend-dist/index.html" ]; then ok "frontend-dist present"; else note "templates/frontend-dist/index.html missing"; fi
+        if [ -s "$PKGROOT/images/IMAGES.txt" ]; then ok "images/IMAGES.txt (image-id manifest) present"; else note "images/IMAGES.txt missing"; fi
+        if [ -s "$PKGROOT/rules/sentinelcore.rules" ] && [ -s "$PKGROOT/rules/NOTICE.txt" ]; then ok "bundled ruleset + NOTICE present"; else note "rules/sentinelcore.rules or rules/NOTICE.txt missing"; fi
         case "$relay" in
             ''|*relay.sentinelcore.app*) note "RELAY_URL is the placeholder/empty ('$relay') in a real release" ;;
             https://*) ok "relay url: $relay" ;;
@@ -65,6 +67,7 @@ case "$flavor" in
         if [ -f "$PKGROOT/SHA256SUMS" ]; then
             grep -q '  images/sentinelcore-images-' "$PKGROOT/SHA256SUMS" || note "SHA256SUMS does not cover the image tarball"
             grep -q '  templates/frontend-dist/' "$PKGROOT/SHA256SUMS" || note "SHA256SUMS does not cover frontend-dist"
+            grep -q '  rules/sentinelcore.rules' "$PKGROOT/SHA256SUMS" || note "SHA256SUMS does not cover the ruleset"
         fi
         ;;
     test)
@@ -150,10 +153,20 @@ scan_file() {
     return 0
 }
 while IFS= read -r f; do
-    case "$f" in */images/*) continue ;; esac
+    case "$f" in
+        */images/*) continue ;;
+        # Third-party detection rules legitimately contain token-like strings
+        # (they DETECT leaked keys); integrity is checked against its .sha256.
+        */rules/sentinelcore.rules) continue ;;
+    esac
     scan_file "$f" || true
 done < <(find "$STAGING" -type f 2>/dev/null)
 [ "$content_hits" -eq 0 ] && ok "no token patterns / lab values / dev paths"
+for r in "$STAGING"/rules/sentinelcore.rules "$STAGING"/*/rules/sentinelcore.rules; do
+    [ -f "$r" ] || continue
+    if ( cd "$(dirname "$r")" && sha256sum -c --quiet sentinelcore.rules.sha256 ) >/dev/null 2>&1; then ok "ruleset matches rules/sentinelcore.rules.sha256"
+    else note "ruleset does not match rules/sentinelcore.rules.sha256"; fi
+done
 
 # --------------------------------------------------------------------------
 # 3) Dedicated secret scanners if available
@@ -186,12 +199,15 @@ while IFS= read -r f; do
     case "$f" in
         */images/*) continue ;;
         */templates/frontend-dist/*) continue ;;   # minified bundles; token regexes above still apply
-        *SHA256SUMS|*.sha256) continue ;;
+        */rules/sentinelcore.rules) continue ;;    # third-party rules (checksummed)
+        *SHA256SUMS|*.sha256|*.asc) continue ;;
     esac
     LC_ALL=C grep -qI . "$f" 2>/dev/null || continue
     while IFS= read -r line; do
         [ -z "$line" ] && continue
         case "$line" in *__*) continue ;; esac
+        # sha256 / image digests (pure lowercase hex, 64 chars) are not secrets.
+        case "$line" in *[!0-9a-f]*) ;; *) [ "${#line}" -eq 64 ] && continue ;; esac
         printf '%s' "$line" | grep -q '[0-9]' || continue
         printf '%s' "$line" | grep -q '[A-Za-z]' || continue
         entropy_hits=$((entropy_hits + 1))
@@ -208,9 +224,10 @@ echo "-- docker image inspection --"
 if ! command -v docker >/dev/null 2>&1; then
     ok "docker not available — image scan SKIPPED (run on the build host)"
 else
-    imgs="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep '^sentinelcore/' || true)"
+    # Only this package's images (sentinelcore/*:<VERSION>).
+    imgs="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep "^sentinelcore/.*:${pkg_version:-none}\$" || true)"
     if [ -z "$imgs" ]; then
-        ok "no sentinelcore/* images loaded — image scan SKIPPED"
+        ok "no sentinelcore/*:${pkg_version:-?} images present — image scan SKIPPED"
     else
         img_hits=0
         while IFS= read -r img; do
@@ -218,11 +235,17 @@ else
             if docker history --no-trunc "$img" 2>/dev/null | grep -Eiq 'xkeysib-|AKIA[0-9A-Z]{16}|PRIVATE KEY|password=|secret='; then
                 note "image $img: secret-like value in build history"; img_hits=$((img_hits+1))
             fi
-            # filesystem scan for .env / keys baked into the image
+            # Filesystem scan: .env/.git/ssh keys anywhere; keys/certs/tests/dev
+            # files inside OUR code dirs (/app, /opt/helper, /srv). System CA
+            # bundles (/etc/ssl, certifi) are expected and not flagged.
             cid="$(docker create "$img" 2>/dev/null || true)"
             if [ -n "$cid" ]; then
-                if docker export "$cid" 2>/dev/null | tar -t 2>/dev/null | grep -Eq '(^|/)\.(env|git)(/|$)|\.pem$|\.key$|id_rsa'; then
-                    note "image $img: secret/VCS artifact in filesystem"; img_hits=$((img_hits+1))
+                listing="$(docker export "$cid" 2>/dev/null | tar -t 2>/dev/null || true)"
+                if printf '%s\n' "$listing" | grep -Eq '(^|/)\.env(\.[a-z]+)?$|(^|/)\.git/|(^|/)id_(rsa|ed25519)$'; then
+                    note "image $img: .env / .git / ssh key in filesystem"; img_hits=$((img_hits+1))
+                fi
+                if printf '%s\n' "$listing" | grep -Eq '^(app|opt/helper|srv)/.*(\.pem|\.key|\.pcap|\.log)$|^(app|opt/helper|srv)/tests/|^app/scripts/smoke_'; then
+                    note "image $img: key/cert/test/dev artifact inside the code dir"; img_hits=$((img_hits+1))
                 fi
                 docker rm "$cid" >/dev/null 2>&1 || true
             fi

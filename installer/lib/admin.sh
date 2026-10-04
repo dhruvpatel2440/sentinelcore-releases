@@ -9,13 +9,22 @@
 # environment into the one-shot container, so `ps` only ever shows the
 # variable NAME. No shell re-parsing happens, so ' " $ \ | & and spaces are
 # passed byte-for-byte. Under sudo, --preserve-env=SEED_ADMIN_PASSWORD carries it.
+# Why not a temporary --env-file: it would put the password on disk, and
+# `shred` is not reliable on journaling/CoW filesystems or SSDs. The process
+# environment is root-only (/proc/<pid>/environ is 0400) and never persists.
+#
+# The one-shot container's ENTRYPOINT (main's entrypoint.sh) waits for the DB,
+# runs `alembic upgrade head`, then `python -m scripts.seed_admin` with the
+# password from the environment. The CMD is a no-op print so the seed runs
+# exactly once.
 
 INSTALL_DIR="${INSTALL_DIR:-/opt/sentinelcore}"
+LOGIN_CURL_TLS=()
 
 _dc_with_pw() {
     # _dc_with_pw <compose args...> — run docker compose with ONLY this
     # process carrying SEED_ADMIN_PASSWORD / SEED_ADMIN_USERNAME.
-    local f=(-f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env")
+    local f; mapfile -t f < <(compose_files); f+=(--env-file "$INSTALL_DIR/.env")
     if [ "$(id -u)" -eq 0 ]; then
         SEED_ADMIN_PASSWORD="$ADMIN_PASSWORD" SEED_ADMIN_USERNAME="$ADMIN_USERNAME" \
             docker compose "${f[@]}" "$@"
@@ -34,12 +43,12 @@ bootstrap_admin() {
     step "Create administrator (one-time seed, before first backend start)"
     add_secret admin_password "$ADMIN_PASSWORD"
     if [ "${DRY_RUN:-0}" = 1 ]; then
-        info "[dry-run] SEED_ADMIN_PASSWORD=<redacted> docker compose run --rm --no-deps -e SEED_ADMIN_PASSWORD backend python -m scripts.seed_admin"
+        info "[dry-run] SEED_ADMIN_PASSWORD=<redacted> docker compose run --rm --no-deps -e SEED_ADMIN_PASSWORD -e SEED_ADMIN_USERNAME backend python -c 'print(\"[bootstrap] done\")'"
         info "[dry-run]   (entrypoint: wait for db -> alembic upgrade head -> seed admin '$ADMIN_USERNAME')"
         return 0
     fi
     local out rc=0
-    out="$(_dc_with_pw run --rm --no-deps -e SEED_ADMIN_PASSWORD -e SEED_ADMIN_USERNAME backend python -m scripts.seed_admin 2>&1)" || rc=$?
+    out="$(_dc_with_pw run --rm --no-deps -e SEED_ADMIN_PASSWORD -e SEED_ADMIN_USERNAME backend python -c 'print("[bootstrap] done")' 2>&1)" || rc=$?
     printf '%s\n' "$out" | grep -v '^\s*$' | tail -n 15 | _show_redacted
     if [ "$rc" -ne 0 ]; then err "admin seed failed (exit $rc)"; return 1; fi
     if printf '%s' "$out" | grep -q 'GENERATED PASSWORD'; then
@@ -85,30 +94,60 @@ raise SystemExit(asyncio.run(main()))'
     [ "$rc" -eq 0 ] || { err "could not set the admin password (exit $rc)"; return 1; }
 }
 
+LOGIN_HEADERS=""
+
+LOGIN_CODE=""
+
 _login_code() {
-    # POST the credentials as JSON on stdin (never on the command line).
-    local url="$1" body
+    # POST the credentials as JSON on stdin (never on the command line). Sets
+    # LOGIN_CODE and LOGIN_HEADERS (globals — call it directly, not in $(...)).
+    local url="$1" body hdr
     body="{\"username\":\"$(json_escape "$ADMIN_USERNAME")\",\"password\":\"$(json_escape "$ADMIN_PASSWORD")\"}"
-    printf '%s' "$body" | curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
-        -X POST "$url" -H 'content-type: application/json' --data-binary @- 2>/dev/null || printf '000'
+    hdr="$(mktemp)"
+    LOGIN_CODE="$(printf '%s' "$body" | curl -sS -o /dev/null -D "$hdr" -w '%{http_code}' --max-time 15 "${LOGIN_CURL_TLS[@]}" \
+        -X POST "$url" -H 'content-type: application/json' --data-binary @- 2>/dev/null || printf '000')"
+    LOGIN_HEADERS="$(tr -d '\r' < "$hdr")"; rm -f "$hdr"
+}
+
+login_url() {
+    # The URL the installer uses to prove login works, through nginx.
+    local host; host="$(ui_host "$BIND_ADDRESS")"
+    if [ "${TLS_MODE:-}" = http-local ]; then printf 'http://%s:%s/api/auth/login' "$host" "$HTTP_PORT"
+    else printf 'https://%s:%s/api/auth/login' "$host" "$HTTPS_PORT"; fi
+}
+
+refresh_cookie_ok() {
+    # refresh_cookie_ok <headers> -> the refresh cookie is Secure, HttpOnly, Path=/api/auth.
+    local c; c="$(printf '%s\n' "$1" | grep -i '^set-cookie:' | grep -i 'path=/api/auth' | head -1)"
+    [ -n "$c" ] || return 1
+    printf '%s' "$c" | grep -qi 'secure' && printf '%s' "$c" | grep -qi 'httponly'
 }
 
 verify_login() {
     # Hard check: the chosen password must log in through nginx on the chosen
-    # bind address/port. Interactive: offer retry / re-set / abort.
+    # bind address/port, and the refresh cookie must be usable (Secure over
+    # HTTPS or loopback). Interactive: offer retry / re-set / abort.
     step "Verify admin login"
-    local url
-    url="http://$(ui_host "$BIND_ADDRESS"):$WEB_PORT/api/auth/login"
+    local url; url="$(login_url)"
+    LOGIN_CURL_TLS=()
+    case "${TLS_MODE:-}" in
+        self-signed) LOGIN_CURL_TLS=(--cacert "$INSTALL_DIR/tls-web-ca.crt") ;;
+        custom) LOGIN_CURL_TLS=(--insecure) ;;   # cert is for the public name, we connect by IP
+    esac
     if [ "${DRY_RUN:-0}" = 1 ]; then
-        info "[dry-run] POST $url (JSON on stdin) — expect HTTP 200"
+        info "[dry-run] POST $url (JSON on stdin) — expect HTTP 200 and a Secure; HttpOnly; Path=/api/auth refresh cookie"
         return 0
     fi
     local code tries=0 reset_done=0 choice
     while :; do
         tries=$((tries + 1))
-        code="$(_login_code "$url")"
+        _login_code "$url"; code="$LOGIN_CODE"
         case "$code" in
-            200|204) good "admin login verified at $url (HTTP $code)"; return 0 ;;
+            200|204)
+                good "admin login verified at $url (HTTP $code)"
+                if refresh_cookie_ok "$LOGIN_HEADERS"; then good "refresh cookie is Secure + HttpOnly, Path=/api/auth (session refresh will work)"
+                else warn "refresh cookie not seen with Secure/HttpOnly/Path=/api/auth — check the backend log"; fi
+                return 0 ;;
             000|502|503|504)
                 if [ "$tries" -lt 12 ]; then sleep 5; continue; fi
                 err "login endpoint not reachable at $url (HTTP $code)" ;;

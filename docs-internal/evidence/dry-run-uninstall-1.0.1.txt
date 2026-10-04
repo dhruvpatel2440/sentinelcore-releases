@@ -1,0 +1,22 @@
+
+== SentinelCore uninstall ==
+! no install directory at /opt/sentinelcore (cleaning up leftovers only)
+
+== Remove SentinelCore firewall rules ==
+[dry-run] backend: helper_client.call('fw_reconcile', {'expected': []})  (helper's own op)
+[dry-run] stop worker + backend (no more expiry/reconcile loops)
+[dry-run] helper: iptables -D INPUT/FORWARD -j SENTINELCORE (repeat); iptables -F SENTINELCORE; iptables -X SENTINELCORE
+[dry-run] as_root systemctl disable --now sentinelcore.service
+[dry-run] as_root rm -f /etc/systemd/system/sentinelcore.service
+[dry-run] dc down -v --remove-orphans
+[dry-run] as_root systemctl disable --now sentinelcore-promisc.service
+[dry-run] as_root rm -f /etc/systemd/system/sentinelcore-promisc.service
+[dry-run] as_root systemctl daemon-reload
+[dry-run] fallback on the host: iptables / iptables-nft / iptables-legacy -D/-F/-X SENTINELCORE
+[dry-run] as_root systemctl daemon-reload
+[dry-run] shred -u '/opt/sentinelcore/.env' 2>/dev/null || rm -f '/opt/sentinelcore/.env'
+[dry-run] find '/opt/sentinelcore' -type f -name '*.key' -exec shred -u {} + 2>/dev/null || true
+[dry-run] as_root rm -rf /opt/sentinelcore/tls /opt/sentinelcore/tls-web /opt/sentinelcore/ca.crt /opt/sentinelcore/tls-web-ca.crt /opt/sentinelcore/ca-bundle.pem
+[dry-run] as_root rm -rf /opt/sentinelcore
+✓ purged: containers, volumes, units, promisc, firewall chain, .env, certificates, /opt/sentinelcore
+✓ uninstall complete

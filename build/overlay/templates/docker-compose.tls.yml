@@ -1,0 +1,10 @@
+# SentinelCore release compose — HTTPS overlay (TLS_MODE=self-signed|custom).
+# Added with -f after docker-compose.yml. Publishes 443 on the chosen bind
+# address and mounts the server certificate (tls-web/: key 600, root-owned;
+# read by the nginx master process).
+services:
+  nginx:
+    ports:
+      - "${BIND_ADDRESS:?BIND_ADDRESS must be set in .env}:${HTTPS_PORT:?HTTPS_PORT must be set in .env}:443"
+    volumes:
+      - ./tls-web:/etc/nginx/tls:ro

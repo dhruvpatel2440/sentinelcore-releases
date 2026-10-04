@@ -1,0 +1,54 @@
+# SentinelCore release compose — email overlay (EMAIL_MODE=brevo via the relay).
+# Present in the install dir ONLY while email is enabled (install wizard,
+# enable-email.sh / disable-email.sh). Without it: no relay-shim, no CA
+# bundle mount, no SSL_CERT_FILE.
+#
+# The backend's email client is httpx 0.27 with verify=True and a hardcoded
+# https://api.brevo.com. httpx honours SSL_CERT_FILE, so the bundle (system
+# roots + this install's CA) makes it trust the in-stack shim; the real
+# internet still validates against the system roots.
+services:
+  backend:
+    environment:
+      SSL_CERT_FILE: /etc/sentinelcore/ca-bundle.pem
+    volumes:
+      - ./ca-bundle.pem:/etc/sentinelcore/ca-bundle.pem:ro
+
+  worker:
+    environment:
+      SSL_CERT_FILE: /etc/sentinelcore/ca-bundle.pem
+    volumes:
+      - ./ca-bundle.pem:/etc/sentinelcore/ca-bundle.pem:ro
+
+  # Looks like api.brevo.com on the compose network; forwards to the central
+  # SentinelCore relay over real TLS. Sees ONLY the relay URL, none of the app's secrets.
+  relay-shim:
+    image: sentinelcore/relay-shim:__VERSION__
+    pull_policy: never
+    environment:
+      RELAY_URL: ${RELAY_URL:?RELAY_URL must be set in .env}
+    volumes:
+      # Leaf cert + key for CN=api.brevo.com only (the CA key is destroyed at install).
+      - ./tls:/tls:ro
+    expose:
+      - "443"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 443), 3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      sentinelcore-network:
+        aliases:
+          - api.brevo.com

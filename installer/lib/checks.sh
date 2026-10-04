@@ -8,6 +8,7 @@
 MIN_CORES=4
 MIN_RAM_MB=8000
 MIN_DISK_GB=40
+MIN_DISK_HARD_GB=15
 
 check_os() {
     local id="" ver=""
@@ -50,13 +51,34 @@ check_ram() {
     warn "RAM: ${mb} MB — below minimum ${MIN_RAM_MB} MB"; return 1
 }
 
+docker_root_dir() {
+    # Docker's data root (where images/volumes live), else a sensible parent.
+    local d=""
+    command -v docker >/dev/null 2>&1 && d="$(as_root docker info -f '{{.DockerRootDir}}' 2>/dev/null || true)"
+    [ -n "$d" ] && [ -d "$d" ] || d="/var/lib/docker"
+    [ -d "$d" ] || d="/var/lib"
+    [ -d "$d" ] || d="/"
+    printf '%s' "$d"
+}
+
+free_gb() { df -BG --output=avail "$1" 2>/dev/null | awk 'NR==2{gsub("G","");print $1+0}'; }
+
 check_disk() {
-    # Free space on the Docker data root (fallback /var/lib/docker, then /).
-    local target="/var/lib/docker"; [ -d "$target" ] || target="/var/lib"; [ -d "$target" ] || target="/"
-    local gb; gb="$(df -BG --output=avail "$target" 2>/dev/null | awk 'NR==2{gsub("G","");print $1}')"
-    gb="${gb:-0}"
-    if [ "$gb" -ge "$MIN_DISK_GB" ]; then good "disk: ${gb} GB free on $target (min ${MIN_DISK_GB})"; return 0; fi
-    warn "disk: ${gb} GB free on $target — below minimum ${MIN_DISK_GB} GB"; return 1
+    # Warn below the recommended size; FAIL (rc 2) below the hard floor:
+    # images, ruleset, DB and 90 days of events need room (docs/REQUIREMENTS.md).
+    local target gb; target="$(docker_root_dir)"; gb="$(free_gb "$target")"; gb="${gb:-0}"
+    if [ "$gb" -ge "$MIN_DISK_GB" ]; then good "disk: ${gb} GB free on $target (recommended ${MIN_DISK_GB})"; return 0; fi
+    if [ "$gb" -lt "$MIN_DISK_HARD_GB" ]; then err "disk: only ${gb} GB free on $target — at least ${MIN_DISK_HARD_GB} GB is required"; return 2; fi
+    warn "disk: ${gb} GB free on $target — below the recommended ${MIN_DISK_GB} GB (retention: events 90 d, reports/PCAPs 30 d)"; return 1
+}
+
+check_disk_for_upgrade() {
+    # An upgrade keeps the previous images (rollback) and writes a DB snapshot.
+    local target gb need; target="$(docker_root_dir)"; gb="$(free_gb "$target")"; gb="${gb:-0}"
+    need=$(( MIN_DISK_HARD_GB / 2 + 4 ))
+    if [ "${DRY_RUN:-0}" = 1 ]; then info "[dry-run] need >= ${need} GB free on $target for new images + DB snapshot (have ${gb})"; return 0; fi
+    [ "$gb" -ge "$need" ] || { err "upgrade needs at least ${need} GB free on $target (new images + rollback snapshot); have ${gb} GB"; return 1; }
+    good "disk: ${gb} GB free for the upgrade"
 }
 
 check_internet() {
@@ -75,7 +97,8 @@ run_system_checks() {
     check_privilege || hard=1
     check_cpu  || true
     check_ram  || true
-    check_disk || true
+    local drc=0; check_disk || drc=$?
+    [ "$drc" = 2 ] && hard=1
     check_internet || true
     if [ "${DRY_RUN:-0}" = 1 ]; then
         [ "$hard" = 1 ] && warn "[dry-run] one or more REQUIRED checks would fail on a real install"

@@ -66,19 +66,24 @@ relay_register
 if [ "$EMAIL_MODE" != brevo ]; then err "email could not be enabled (relay unreachable or refused) — nothing changed"; exit 1; fi
 
 gen_install_ca
+OVERLAY_SRC="$INSTALL_DIR/templates/docker-compose.email.yml"
 if [ "$DRY_RUN" = 1 ]; then
-    info "[dry-run] set EMAIL_MODE=brevo, COMPOSE_PROFILES=email, BREVO_API_KEY=<relay token>, EMAIL_SENDER_ADDRESS, RELAY_URL, RELAY_INSTALL_ID in .env"
-    info "[dry-run] docker compose up -d (recreates backend/worker, starts relay-shim)"
+    info "[dry-run] set EMAIL_MODE=brevo, BREVO_API_KEY=<relay token>, EMAIL_SENDER_ADDRESS, RELAY_URL, RELAY_INSTALL_ID in .env"
+    info "[dry-run] install $OVERLAY_SRC -> $INSTALL_DIR/docker-compose.email.yml (relay-shim + CA bundle + SSL_CERT_FILE)"
+    info "[dry-run] rewrite $SYSTEMD_UNIT with the email overlay; docker compose up -d; wait for all healthchecks incl. relay-shim"
     exit 0
 fi
+[ -f "$OVERLAY_SRC" ] || { err "missing $OVERLAY_SRC — re-run the installer (Repair) first"; exit 1; }
 set_env_value "$ENV_FILE" EMAIL_MODE brevo
-set_env_value "$ENV_FILE" COMPOSE_PROFILES email
 set_env_value "$ENV_FILE" RELAY_URL "$RELAY_URL"
 set_env_value "$ENV_FILE" RELAY_INSTALL_ID "$RELAY_INSTALL_ID"
 set_env_value "$ENV_FILE" BREVO_API_KEY "$RELAY_TOKEN"
 set_env_value "$ENV_FILE" EMAIL_SENDER_ADDRESS "$EMAIL_SENDER_ADDRESS"
 good "updated $ENV_FILE (mode 600)"
+as_root install -m 0644 "$OVERLAY_SRC" "$INSTALL_DIR/docker-compose.email.yml"
 
 xrun dc up -d --remove-orphans
 wait_healthy
+install_systemd_unit
 good "email enabled. Click the verification link sent to $ADMIN_EMAIL to activate sending."
+info "turn it off again any time: sudo $INSTALL_DIR/disable-email.sh"

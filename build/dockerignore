@@ -12,7 +12,6 @@
 **/tests
 **/pytest.ini
 **/scripts/smoke_*.py
-**/scripts/e2e_*.py
 CLAUDE.md
 Modules
 updates

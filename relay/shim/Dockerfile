@@ -2,7 +2,8 @@
 # sentinelcore/relay-shim), aliased to api.brevo.com on the compose network.
 # Terminates TLS with the install-local CA (mounted) so the backend's
 # verify=True egress to https://api.brevo.com trusts it.
-FROM python:3.11-slim
+ARG BASE_IMAGE=python:3.11-slim-trixie
+FROM ${BASE_IMAGE}
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /srv
