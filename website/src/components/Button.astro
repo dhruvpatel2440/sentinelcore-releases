@@ -1,0 +1,28 @@
+---
+const { href = "#", variant = "primary", size = "md", class: cls = "", ...rest } = Astro.props;
+---
+<a href={href} class={`btn btn-${variant} btn-${size} ${cls}`} {...rest}><slot /></a>
+
+<style>
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.005em;
+    text-decoration: none; cursor: pointer; white-space: nowrap;
+    border: 1px solid rgb(var(--outline)); border-radius: var(--r-md);
+    box-shadow: var(--shadow-sm);
+    transition: transform 90ms ease, box-shadow 90ms ease, background-color 120ms ease;
+  }
+  .btn:hover { transform: translate(-2px, -2px); box-shadow: var(--shadow-lg); text-decoration: none; }
+  .btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 transparent; }
+  .btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
+  .btn-md { padding: 0.72rem 1.3rem; }
+  .btn-lg { padding: 0.95rem 1.7rem; font-size: 1.05rem; }
+  .btn-primary, .btn-violet {
+    background: rgb(var(--c-red)); color: #fff; border-color: rgb(var(--c-red));
+    box-shadow: var(--shadow-red);
+  }
+  .btn-primary:hover, .btn-violet:hover { background: rgb(var(--c-red-bright)); box-shadow: var(--shadow-red-lg); }
+  .btn-secondary { background: rgb(var(--bg-raised)); color: rgb(var(--text)); }
+  .btn-secondary:hover { background: rgb(42 42 42); }
+  @media (prefers-reduced-motion: reduce) { .btn:hover, .btn:active { transform: none; } }
+</style>

@@ -1,0 +1,119 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Card from "../components/Card.astro";
+import Callout from "../components/Callout.astro";
+---
+<Layout title="How it works" path="/how-it-works/" description="SentinelCore architecture: nginx, FastAPI, a pipeline worker, Postgres, Redis, and a single privileged helper container that owns Suricata, nmap and the firewall.">
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Architecture</p>
+      <h1>How it works</h1>
+      <p class="lead">
+        Six services and one deliberate privilege boundary. The API never holds raw-socket
+        power; every privileged operation crosses a single Unix socket to the helper.
+      </p>
+
+      <!-- Architecture diagram -->
+      <div class="diagram glass">
+        <svg viewBox="0 0 900 470" role="img" aria-labelledby="arch-title arch-desc" width="100%">
+          <title id="arch-title">SentinelCore architecture</title>
+          <desc id="arch-desc">
+            The browser reaches nginx on port 80, which proxies to the React frontend and the
+            FastAPI backend. The backend talks to Postgres and Redis, and reaches the privileged
+            helper over a Unix socket. The helper runs nmap, iptables and Suricata against the
+            host kernel and NIC. Suricata writes EVE JSON that a worker tails into events, which
+            the correlation engine groups into incidents.
+          </desc>
+          <style>
+            .box { fill: #141414; stroke: #3a3a3a; stroke-width: 1.5; rx: 8; }
+            .acc { fill: #2a1111; stroke: #dc2626; }
+            .dgr { fill: #dc2626; stroke: #dc2626; }
+            .vio { fill: #222222; }
+            .lbl { font: 700 15px "Plus Jakarta Sans", sans-serif; fill: #ffffff; }
+            .sub { font: 12px "JetBrains Mono", monospace; fill: #a3a3a3; }
+            .edge { stroke: #737373; stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+            .edge-lbl { font: 11px "JetBrains Mono", monospace; fill: #ef4444; }
+          </style>
+          <defs>
+            <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6 Z" fill="#737373"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="20" y="30" width="120" height="54" rx="10"/>
+          <text class="lbl" x="80" y="55" text-anchor="middle">Browser</text>
+          <text class="sub" x="80" y="72" text-anchor="middle">:80</text>
+
+          <rect class="box" x="200" y="30" width="120" height="54" rx="10"/>
+          <text class="lbl" x="260" y="55" text-anchor="middle">nginx</text>
+          <text class="sub" x="260" y="72" text-anchor="middle">proxy</text>
+
+          <rect class="box acc" x="380" y="30" width="140" height="54" rx="10"/>
+          <text class="lbl" x="450" y="55" text-anchor="middle">FastAPI</text>
+          <text class="sub" x="450" y="72" text-anchor="middle">no caps</text>
+
+          <rect class="box acc" x="380" y="120" width="140" height="54" rx="10"/>
+          <text class="lbl" x="450" y="145" text-anchor="middle">worker</text>
+          <text class="sub" x="450" y="162" text-anchor="middle">pipeline</text>
+
+          <rect class="box" x="600" y="30" width="120" height="54" rx="10"/>
+          <text class="lbl" x="660" y="55" text-anchor="middle">Postgres</text>
+          <rect class="box" x="750" y="30" width="120" height="54" rx="10"/>
+          <text class="lbl" x="810" y="55" text-anchor="middle">Redis</text>
+
+          <rect class="box dgr" x="360" y="230" width="180" height="60" rx="10"/>
+          <text class="lbl" x="450" y="255" text-anchor="middle" fill="#fff">privileged-helper</text>
+          <text class="sub" x="450" y="274" text-anchor="middle" fill="#fee2e2">NET_RAW · NET_ADMIN</text>
+
+          <rect class="box" x="600" y="232" width="270" height="56" rx="10"/>
+          <text class="lbl" x="735" y="257" text-anchor="middle">nmap · iptables · Suricata</text>
+          <text class="sub" x="735" y="275" text-anchor="middle">host kernel / NIC</text>
+
+          <rect class="box vio" x="360" y="350" width="140" height="50" rx="10"/>
+          <text class="lbl" x="430" y="380" text-anchor="middle">events</text>
+          <rect class="box vio" x="560" y="350" width="150" height="50" rx="10"/>
+          <text class="lbl" x="635" y="380" text-anchor="middle">incidents</text>
+
+          <!-- edges -->
+          <path class="edge" d="M140,57 L198,57"/>
+          <path class="edge" d="M320,57 L378,57"/>
+          <path class="edge" d="M520,57 L598,57"/>
+          <path class="edge" d="M720,57 L748,57"/>
+          <path class="edge" d="M450,84 L450,118"/>
+          <path class="edge" d="M450,174 L450,228"/>
+          <text class="edge-lbl" x="462" y="205">unix socket</text>
+          <path class="edge" d="M540,260 L598,260"/>
+          <path class="edge" d="M735,288 L735,320 L500,320 L450,320 L450,348"/>
+          <text class="edge-lbl" x="520" y="335">EVE → pipeline</text>
+          <path class="edge" d="M500,375 L558,375"/>
+        </svg>
+      </div>
+
+      <h2 style="margin-top:2.5rem">Three input channels</h2>
+      <div class="grid grid-3 no-index" style="margin-top:1rem">
+        <Card title="1 · Live capture">Suricata reads the mirrored interface via af-packet and emits EVE JSON the pipeline consumes.</Card>
+        <Card title="2 · Active discovery">The API asks the helper to run nmap and ARP sweeps across the monitored network.</Card>
+        <Card title="3 · Uploaded PCAPs">Analysts upload captures; the worker parses them offline with tshark, unprivileged.</Card>
+      </div>
+
+      <h2 style="margin-top:2.5rem">Privilege separation</h2>
+      <Callout tone="warn" title="One container holds power — and only two capabilities">
+        The <code>helper</code> is the only container with <code>NET_RAW</code>/<code>NET_ADMIN</code>
+        (plus <code>SYS_NICE</code> and <code>CHOWN</code>), and it uses host networking so it can see
+        the monitored LAN. It is <strong>never</strong> <code>privileged: true</code>. The API and worker
+        drop <em>all</em> capabilities and reach it only through a <code>0660 root:sentinelcore</code>
+        Unix socket — group membership (GID 2000) is the entire authorization mechanism.
+      </Callout>
+
+      <h2 style="margin-top:2rem">Roles</h2>
+      <div class="grid grid-2" style="margin-top:1rem">
+        <Card title="Administrator">Manages users, system settings, email configuration and sensor control. Created at install via the app's own seed mechanism.</Card>
+        <Card title="Analyst">Triages incidents, runs discovery and PCAP analysis, applies time-boxed containment, and generates reports.</Card>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .diagram { margin-top: 1.5rem; padding: 1.2rem; overflow-x: auto; background: rgb(var(--bg-solid)); border: 1px solid rgb(var(--glass-border)); border-radius: var(--r-md); border-right: 4px solid rgb(var(--c-red)); }
+</style>

@@ -1,0 +1,35 @@
+---
+// Native, accessible accordion using <details>. Pass items=[{q, a}].
+const { items = [] } = Astro.props;
+---
+<div class="accordion">
+  {items.map((it) => (
+    <details class="nb acc-item">
+      <summary>{it.q}</summary>
+      <div class="acc-body"><p>{it.a}</p></div>
+    </details>
+  ))}
+</div>
+
+<style>
+  .accordion { display: grid; gap: 0.75rem; }
+  .acc-item {
+    background: rgb(var(--bg-solid)); padding: 0 1.2rem;
+    border: 1px solid rgb(var(--glass-border)); border-radius: var(--r-md);
+    transition: border-color 140ms ease;
+  }
+  .acc-item[open] { border-color: rgb(var(--c-red) / 0.7); }
+  summary {
+    cursor: pointer; font-weight: 700; padding: 1rem 0; list-style: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: "+"; flex: none; width: 1.7rem; height: 1.7rem; display: grid; place-items: center;
+    font-size: 1.1rem; color: #fff; background: rgb(var(--c-red)); border-radius: 5px;
+    box-shadow: 2px 2px 0 0 rgb(var(--c-red-deep));
+  }
+  details[open] summary::after { content: "–"; }
+  .acc-body { padding-bottom: 1.1rem; color: rgb(var(--text-muted)); }
+  .acc-body p { margin: 0; }
+</style>

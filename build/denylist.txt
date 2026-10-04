@@ -1,0 +1,56 @@
+# Denylist — path/glob patterns pruned from build/work/src/ AFTER the
+# allowlist copy, and also enforced by tests/audit-package.sh against the
+# final staging dir. One pattern per line (shell glob, matched against paths
+# relative to the copy root and against basenames). # and blank lines ignored.
+#
+# Nothing matching these may ever reach an image or the ZIP.
+
+# Secrets / env
+.env
+.env.*
+*.env
+.env.example
+
+# VCS / CI
+.git
+.git/*
+.github
+.gitignore
+
+# Tests & dev smoke/e2e
+tests
+*/tests
+*/tests/*
+pytest.ini
+scripts/smoke_*.py
+scripts/e2e_*.py
+
+# Internal docs / notes (never customer-facing)
+CLAUDE.md
+Modules
+updates
+validation
+TEST_REPORT.md
+TEST_REPORT.docx
+README.md
+
+# Build artifacts / caches / deps
+node_modules
+*/node_modules
+*/node_modules/*
+__pycache__
+*/__pycache__
+*.pyc
+.venv
+*/.venv
+.vite
+*/.vite
+*.timestamp-*.mjs
+
+# Runtime data that must never ship
+*.pcap
+*.log
+dist
+postgres_data
+redis_data
+.DS_Store

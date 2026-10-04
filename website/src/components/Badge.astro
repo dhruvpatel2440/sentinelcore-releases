@@ -1,0 +1,19 @@
+---
+const { tone = "neutral" } = Astro.props;
+---
+<span class={`badge badge-${tone}`}><slot /></span>
+
+<style>
+  .badge {
+    display: inline-block; font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 0.28rem 0.6rem;
+    border: 1px solid rgb(var(--outline)); border-radius: 4px;
+    background: rgb(var(--bg-raised)); color: rgb(var(--text)); white-space: nowrap;
+  }
+  .badge-mint, .badge-violet {
+    background: rgb(var(--c-red)); border-color: rgb(var(--c-red)); color: #fff;
+    box-shadow: 3px 3px 0 0 rgb(var(--c-red-deep));
+  }
+  .badge-roadmap { background: rgb(var(--c-medium) / 0.15); border-color: rgb(var(--c-medium) / 0.6); color: rgb(var(--c-medium)); }
+  .badge-ok { background: rgb(var(--c-ok) / 0.12); border-color: rgb(var(--c-ok) / 0.55); color: rgb(var(--c-ok)); }
+</style>

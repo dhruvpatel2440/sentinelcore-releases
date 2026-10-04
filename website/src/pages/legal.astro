@@ -1,0 +1,56 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Callout from "../components/Callout.astro";
+---
+<Layout title="Legal & privacy" path="/legal/" description="SentinelCore license, terms, and privacy policy. No telemetry; the email relay explained.">
+  <section class="section">
+    <div class="container narrow">
+      <p class="eyebrow">Legal</p>
+      <h1>Legal &amp; privacy</h1>
+
+      <h2>License &amp; terms</h2>
+      <p>
+        SentinelCore is distributed under its project license (All Rights Reserved unless stated
+        otherwise in the release). Use is permitted only on networks you own or are explicitly
+        authorized to monitor and defend. The software is provided “as is”, without warranty of any
+        kind; you are responsible for how and where you deploy it.
+      </p>
+
+      <h2>Privacy policy</h2>
+      <Callout tone="ok" title="No telemetry, no trackers">
+        The software collects no usage analytics and phones home for nothing. This website uses no
+        analytics or third-party trackers.
+      </Callout>
+      <p>
+        All operational data — captured traffic, flows, uploaded PCAPs, events, incidents, reports —
+        stays on your host. SentinelCore has exactly one optional outbound dependency: the email relay.
+      </p>
+      <h3>What the email relay receives</h3>
+      <ul>
+        <li>Your verified admin email address (the only permitted recipient).</li>
+        <li>The subject and rendered body of notifications you choose to send.</li>
+        <li>A per-install token (stored only as a hash; revocable at any time).</li>
+      </ul>
+      <h3>What it never receives</h3>
+      <ul>
+        <li>Network traffic, PCAPs, flows, events, incidents or reports.</li>
+        <li>Any mail-provider key — none exists on your box.</li>
+      </ul>
+
+      <h2>Contact &amp; support</h2>
+      <p>
+        For support, questions or security reports, contact the SentinelCore team through the channel
+        provided with your release. Please report suspected vulnerabilities privately rather than in
+        public issues.
+      </p>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .narrow { max-width: 760px; }
+  h2 { margin-top: 2rem; }
+  h3 { margin-top: 1.2rem; }
+  ul { color: rgb(var(--text-muted)); padding-left: 1.2rem; }
+  li { margin-bottom: 0.35rem; }
+</style>

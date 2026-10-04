@@ -1,0 +1,82 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Button from "../components/Button.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import Callout from "../components/Callout.astro";
+import release from "../data/release.json";
+const dir = release.filename.replace(/\.zip$/, "");
+const changelog = [
+  ["1.0.0", release.date, [
+    "First public release.",
+    "Guided installer with dry-run and non-interactive modes.",
+    "Suricata sensor, event pipeline, correlation, incidents, firewall containment.",
+    "Asset discovery, PCAP analysis, reporting, threat intel.",
+    "Email notifications via the central relay (no provider key on the box).",
+  ]],
+];
+---
+<Layout title="Download" path="/download/" description="Download SentinelCore. Verify the SHA-256 checksum, unzip, and run the guided installer. Linux only.">
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Get SentinelCore</p>
+      <h1>Download</h1>
+
+      <div class="dl glass">
+        <div class="dl-main">
+          <p class="dl-file">{release.filename}</p>
+          <p class="muted">Version {release.version} · {release.date} · {release.size}</p>
+          <Button href={release.downloadUrl} size="lg" class="dl-btn">⬇ Download SentinelCore</Button>
+        </div>
+        <div class="dl-meta">
+          <p class="label-caps">SHA-256</p>
+          <code class="sha">{release.sha256}</code>
+        </div>
+      </div>
+
+      <Callout tone="warn" title="Linux only">
+        SentinelCore installs on Ubuntu 22.04/24.04 (x86_64). It will not run on Windows or macOS.
+        See <a href="/requirements/">system requirements</a>.
+      </Callout>
+
+      <h2 style="margin-top:2rem">Verify the download</h2>
+      <p>Check the checksum before installing. The expected value is shown above.</p>
+      <CodeBlock label="verify" code={`echo "${release.sha256}  ${release.filename}" | sha256sum -c`} />
+
+      <h2 style="margin-top:1.5rem">Install</h2>
+      <CodeBlock label="install" code={`unzip ${release.filename}\ncd ${dir}\nsudo ./install.sh`} />
+
+      <h2 style="margin-top:1.5rem">Optional: verify the GPG signature</h2>
+      <p>Signed releases ship a <code>{release.filename}.asc</code> detached signature.</p>
+      <CodeBlock label="gpg" code={`gpg --verify ${release.filename}.asc ${release.filename}`} />
+
+      <h2 style="margin-top:2rem">Changelog</h2>
+      {changelog.map(([v, d, items]) => (
+        <div class="cl nb">
+          <p class="cl-head"><strong>v{v}</strong> <span class="muted">· {d}</span></p>
+          <ul>{items.map((i) => <li>{i}</li>)}</ul>
+        </div>
+      ))}
+
+      {release.source === "placeholder" && (
+        <Callout tone="info" title="Build-time values">
+          Version, size and checksum are filled by <code>scripts/sync-release.mjs</code> from
+          <code>dist/*.sha256</code> at build time. This preview shows placeholders because no built
+          release was present when the site was generated.
+        </Callout>
+      )}
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .dl { margin-top: 1.5rem; padding: clamp(1.3rem, 4vw, 2rem); display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: space-between; border-color: rgb(255 255 255 / 0.7); border-right: 6px solid rgb(var(--c-red)); }
+  .dl-file { font-family: var(--font-mono); font-weight: 700; font-size: 1.2rem; margin: 0 0 0.2rem; }
+  .dl-btn { margin-top: 1rem; }
+  .dl-meta { min-width: 260px; }
+  .label-caps { font-size: var(--fs-label); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: rgb(var(--text-muted)); }
+  .sha { display: block; font-size: 0.8rem; word-break: break-all; background: rgb(var(--c-ink)); color: #e5e5e5; padding: 0.7rem; border-radius: var(--r-sm); border: 1px solid rgb(var(--glass-border)); }
+  .cl { background: rgb(var(--bg-solid)); padding: 1.1rem 1.3rem; margin-top: 1rem; }
+  .cl-head { margin: 0 0 0.5rem; }
+  .cl ul { margin: 0; padding-left: 1.1rem; color: rgb(var(--text-muted)); }
+  .cl li { margin-bottom: 0.3rem; }
+</style>

@@ -1,0 +1,41 @@
+---
+const { title, icon, class: cls = "" } = Astro.props;
+---
+<div class={`card glass ${cls}`}>
+  {icon && <div class="card-icon" aria-hidden="true">{icon}</div>}
+  {title && <h3 class="card-title">{title}</h3>}
+  <div class="card-body"><slot /></div>
+</div>
+
+<style>
+  .card {
+    position: relative; padding: 1.6rem 1.5rem 1.5rem; height: 100%;
+    background: rgb(var(--bg-solid)); border: 1px solid rgb(var(--glass-border));
+    border-radius: var(--r-md);
+    transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  }
+  /* red index "01 —" when the card sits in a .grid */
+  :global(.grid) > .card { counter-increment: tile; }
+  :global(.grid.no-index) > .card::before { display: none; }
+  :global(.grid) > .card::before {
+    content: counter(tile, decimal-leading-zero) " —";
+    display: block; margin-bottom: 0.9rem;
+    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em;
+    color: rgb(var(--c-red-bright));
+  }
+  .card::after {   /* red accent edge on hover, like the reference cards */
+    content: ""; position: absolute; top: 10px; bottom: 10px; right: -1px; width: 3px;
+    background: rgb(var(--c-red)); border-radius: 2px; opacity: 0; transition: opacity 140ms ease;
+  }
+  .card:hover { border-color: rgb(255 255 255 / 0.28); transform: translate(-2px, -2px); box-shadow: var(--shadow-sm); }
+  .card:hover::after { opacity: 1; }
+  .card-icon {
+    width: 2.6rem; height: 2.6rem; display: grid; place-items: center;
+    background: rgb(var(--c-red)); border-radius: var(--r-md); font-size: 1.2rem;
+    margin-bottom: 1rem; box-shadow: var(--shadow-red); filter: saturate(0.9);
+  }
+  .card-title { overflow-wrap: anywhere; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em; }
+  .card-body { color: rgb(var(--text-muted)); font-size: 0.97rem; }
+  .card-body :global(p:last-child) { margin-bottom: 0; }
+  @media (prefers-reduced-motion: reduce) { .card:hover { transform: none; } }
+</style>

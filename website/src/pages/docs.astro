@@ -1,0 +1,117 @@
+---
+import Layout from "../layouts/Layout.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import Callout from "../components/Callout.astro";
+import Accordion from "../components/Accordion.astro";
+import release from "../data/release.json";
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const p = (h) => `${base}${h}`;
+
+const toc = [
+  ["getting-started", "Getting started"],
+  ["installation", "Installation"],
+  ["configuration", "Configuration"],
+  ["sensors", "Sensors"],
+  ["roles", "Roles & admin"],
+  ["email", "Email notifications"],
+  ["upgrade", "Upgrade"],
+  ["uninstall", "Uninstall"],
+  ["troubleshooting", "Troubleshooting"],
+  ["faq", "FAQ"],
+];
+
+const faq = [
+  { q: "Does it run on Windows or macOS?", a: "No. SentinelCore needs Linux host networking and raw-socket capabilities for the sensor and helper. Ubuntu 22.04/24.04 on x86_64. WSL is not supported." },
+  { q: "Is any data sent to the internet?", a: "Only optional email notifications, and only through the SentinelCore relay over HTTPS. No telemetry, no analytics. Your traffic and findings stay on the host." },
+  { q: "Do I need a mail-provider API key?", a: "No. The provider key lives only on the central relay. Your install gets a revocable per-install token instead." },
+  { q: "Can I use one NIC?", a: "You can, but the capture interface will only see host-local traffic. For real visibility, dedicate a mirror/SPAN port as the capture interface." },
+  { q: "How is the first admin created?", a: "By the app's own seed mechanism on first boot. If you don't set a password, a strong one is generated and printed once — the installer surfaces it." },
+  { q: "Where are my data and config stored?", a: "Config in /opt/sentinelcore/.env (mode 600). Data in Docker named volumes (Postgres, reports, PCAPs). Uninstall keeps data unless you pass --purge." },
+];
+---
+<Layout title="Documentation" path="/docs/" description="SentinelCore documentation: getting started, installation, configuration, sensors, roles, email, upgrade, uninstall, troubleshooting and FAQ.">
+  <section class="section">
+    <div class="container docs">
+      <aside class="toc glass" aria-label="On this page">
+        <p class="label-caps">On this page</p>
+        <nav>
+          <ul>{toc.map(([id, t]) => <li><a href={`#${id}`}>{t}</a></li>)}</ul>
+        </nav>
+      </aside>
+
+      <article class="doc-body">
+        <h1>Documentation</h1>
+        <p class="lead">Everything to install, run and operate SentinelCore on one Ubuntu host.</p>
+
+        <h2 id="getting-started">Getting started</h2>
+        <p>SentinelCore ships as a single ZIP containing a guided installer and offline Docker images. You need an Ubuntu 22.04/24.04 host, Docker, root/sudo, and a capture interface that sees the traffic you want to monitor.</p>
+        <ol>
+          <li>Download and verify the release ZIP (see <a href={p("/download/")}>Download</a>).</li>
+          <li>Unzip and run <code>sudo ./install.sh</code>.</li>
+          <li>Answer the wizard; store the admin password it prints.</li>
+          <li>Open <code>http://&lt;host&gt;/</code> and sign in.</li>
+        </ol>
+
+        <h2 id="installation">Installation</h2>
+        <p>The installer is a step-by-step wizard (whiptail, with a plain-text fallback and a <code>--non-interactive --config</code> mode). Preview every action without changing anything using <code>--dry-run</code>.</p>
+        <CodeBlock label="install" code={`unzip ${release.filename}\ncd ${release.filename.replace(/\\.zip$/, "")}\nsudo ./install.sh`} />
+        <p>The wizard: checks the system, installs Docker (with consent, from Docker's official repo), detects interfaces, generates all secrets, loads the bundled images, starts the stack, creates the first admin, enables a systemd unit, and verifies the services are healthy.</p>
+        <Callout tone="info" title="Automated installs">
+          Use <code>sudo ./install.sh --non-interactive --config my-install.conf</code> with a simple
+          <code>KEY=VALUE</code> file to script deployments.
+        </Callout>
+
+        <h2 id="configuration">Configuration</h2>
+        <p>Configuration lives in <code>/opt/sentinelcore/.env</code> (mode 600, owned by the install user). Generated secrets (DB password, JWT key, webhook secret) are written there; the admin password is not — it is passed once to the app and hashed.</p>
+        <p>Key values you choose at install: monitored network (CIDR), protected IPs (gateway/DNS/self, never blockable), capture interface, web port and bind address, admin email/username, and whether email is enabled.</p>
+
+        <h2 id="sensors">Sensors</h2>
+        <p>The Suricata sensor reads your capture interface via af-packet. Its <code>HOME_NET</code> is set to match your monitored network at install. Asset discovery (nmap + ARP) and firewall containment run through the privileged helper.</p>
+        <Callout tone="warn" title="Capture interface">
+          Point the capture interface at a mirror/SPAN port for real visibility. Capturing on the
+          management NIC only shows host-local traffic.
+        </Callout>
+
+        <h2 id="roles">Roles &amp; admin</h2>
+        <p>Two roles: <strong>Administrator</strong> (users, settings, email, sensor control) and <strong>Analyst</strong> (triage, discovery, PCAP, containment, reports). The first admin is created at install. To see the generated password again if you missed it:</p>
+        <CodeBlock label="recover admin password (first boot only)" code={`docker compose -f /opt/sentinelcore/docker-compose.yml logs backend | grep -A1 "GENERATED PASSWORD"`} />
+
+        <h2 id="email">Email notifications</h2>
+        <p>Email is optional. When enabled, notifications are routed through the SentinelCore relay over HTTPS — no mail-provider key is stored on your box. At install you register with the relay and verify your admin email; sending stays disabled until you click the verification link.</p>
+        <p>See <a href={p("/security/")}>Security</a> for exactly what the relay does and does not see.</p>
+
+        <h2 id="upgrade">Upgrade</h2>
+        <p>Download the new release, unzip, and run the installer. It detects the existing install and offers <strong>Upgrade</strong> — new images are loaded and containers recreated while your <code>.env</code> and data volumes are kept.</p>
+        <CodeBlock label="upgrade" code={`unzip sentinelcore-<new-version>.zip\ncd sentinelcore-<new-version>\nsudo ./install.sh   # choose: Upgrade`} />
+
+        <h2 id="uninstall">Uninstall</h2>
+        <CodeBlock label="uninstall" code={`sudo /opt/sentinelcore/uninstall.sh            # stop & remove containers, keep data\nsudo /opt/sentinelcore/uninstall.sh --purge    # also remove data volumes (irreversible)`} />
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+        <ul>
+          <li><strong>Services not healthy:</strong> <code>docker compose -f /opt/sentinelcore/docker-compose.yml ps</code> and <code>logs</code>.</li>
+          <li><strong>No events appearing:</strong> confirm the capture interface sees traffic and <code>HOME_NET</code> matches your network.</li>
+          <li><strong>Port 80 in use:</strong> free it or change the web port at install.</li>
+          <li><strong>Email not sending:</strong> ensure you clicked the relay verification link; check <code>EMAIL_MODE</code> in <code>.env</code>.</li>
+          <li><strong>Install log:</strong> <code>/var/log/sentinelcore-install.log</code> (secrets are redacted).</li>
+        </ul>
+
+        <h2 id="faq">FAQ</h2>
+        <Accordion items={faq} />
+      </article>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .docs { display: grid; gap: 2rem; grid-template-columns: 1fr; }
+  @media (min-width: 960px) { .docs { grid-template-columns: 220px 1fr; align-items: start; } }
+  .toc { padding: 1rem 1.1rem; position: sticky; top: 5rem; }
+  .toc ul { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.4rem; }
+  .toc a { color: rgb(var(--text-muted)); text-decoration: none; font-size: 0.92rem; }
+  .toc a:hover { color: #fff; }
+  .label-caps { font-size: var(--fs-label); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; margin: 0; color: rgb(var(--c-red-bright)); }
+  .doc-body h2 { margin-top: 2.2rem; scroll-margin-top: 5rem; padding-bottom: 0.3rem; border-bottom: 1px solid rgb(var(--hairline)); font-size: clamp(1.4rem, 3vw, 1.9rem); }
+  .doc-body ul, .doc-body ol { color: rgb(var(--text-muted)); padding-left: 1.2rem; }
+  .doc-body li { margin-bottom: 0.4rem; }
+</style>

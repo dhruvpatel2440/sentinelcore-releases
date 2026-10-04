@@ -1,0 +1,15 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Button from "../components/Button.astro";
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+---
+<Layout title="Not found" path="/404/" description="Page not found.">
+  <section class="section">
+    <div class="container center">
+      <p class="eyebrow">404</p>
+      <h1>Nothing to detect here</h1>
+      <p class="lead" style="margin-inline:auto">That page doesn't exist. Head back to safety.</p>
+      <p style="margin-top:1.5rem"><Button href={`${base}/`} size="lg">← Home</Button></p>
+    </div>
+  </section>
+</Layout>

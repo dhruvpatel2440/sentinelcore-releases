@@ -1,0 +1,78 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Card from "../components/Card.astro";
+import Callout from "../components/Callout.astro";
+---
+<Layout title="Security" path="/security/" description="SentinelCore security model: privilege separation, role-based access, local-only data, and exactly what the email relay does and does not see.">
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Security model</p>
+      <h1>Security</h1>
+      <p class="lead">
+        SentinelCore is built around one idea: concentrate privilege in one small, auditable
+        place, and keep everything else powerless.
+      </p>
+
+      <h2>Privilege separation</h2>
+      <div class="grid grid-2" style="margin-top:1rem">
+        <Card title="Powerless API">
+          The backend and pipeline worker run as an unprivileged user with <code>cap_drop: ALL</code>
+          and <code>no-new-privileges</code>. They can't touch raw sockets or the firewall.
+        </Card>
+        <Card title="One capability boundary">
+          The <code>helper</code> holds only <code>NET_RAW</code>, <code>NET_ADMIN</code>,
+          <code>SYS_NICE</code> and <code>CHOWN</code> — never full privilege — and is reached only
+          over a <code>0660 root:sentinelcore</code> Unix socket.
+        </Card>
+      </div>
+
+      <h2 style="margin-top:2rem">Role-based access</h2>
+      <p>
+        Accounts are Admin or Analyst. Passwords are hashed with Argon2; access tokens are short-lived;
+        the refresh cookie is scoped to <code>/api/auth</code> and marked <code>Secure</code> in
+        production; repeated failed logins are throttled per username + IP.
+      </p>
+
+      <h2 style="margin-top:2rem">What stays local</h2>
+      <div class="grid grid-3" style="margin-top:1rem">
+        <Card title="Your traffic">Captured frames, flows and uploaded PCAPs never leave the host.</Card>
+        <Card title="Your findings">Events, incidents, intel matches and reports live only in your local Postgres and volumes.</Card>
+        <Card title="Your config">Secrets are generated at install and stored in a <code>600</code> .env on your box.</Card>
+      </div>
+
+      <h2 style="margin-top:2rem">What the email relay does — and doesn't — see</h2>
+      <Callout tone="ok" title="The relay never holds your data">
+        SentinelCore can send notifications through a central relay so that no mail-provider key
+        ever ships to your box. The relay only ever receives: the <em>recipient</em> (your verified
+        admin address), a <em>subject</em>, and the rendered <em>notification body</em> for an
+        allow-listed notification type — plus your revocable per-install token for authentication.
+      </Callout>
+      <div class="grid grid-2" style="margin-top:1rem">
+        <Card title="The relay DOES see">
+          <ul>
+            <li>Your admin email address (the only allowed recipient)</li>
+            <li>The subject and body of notifications you choose to send</li>
+            <li>A per-install token (a hash is stored; it's revocable any time)</li>
+          </ul>
+        </Card>
+        <Card title="The relay does NOT see">
+          <ul>
+            <li>Any raw network traffic, PCAPs or flows</li>
+            <li>Your events, incidents or reports database</li>
+            <li>Any provider API key on your side — there isn't one on your box</li>
+          </ul>
+        </Card>
+      </div>
+
+      <Callout tone="danger" title="Lab / authorized-network use">
+        SentinelCore actively scans and can block hosts on the network you point it at. Run it only
+        on networks you are authorized to monitor and defend.
+      </Callout>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  ul { margin: 0; padding-left: 1.1rem; color: rgb(var(--text-muted)); }
+  li { margin-bottom: 0.35rem; }
+</style>

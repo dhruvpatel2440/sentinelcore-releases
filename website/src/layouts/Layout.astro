@@ -1,0 +1,43 @@
+---
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+const {
+  title = "SentinelCore",
+  description = "SentinelCore — modular network detection & incident response. Suricata-based IDS, privilege-separated, runs locally on one Linux host. No telemetry.",
+  path = "/",
+} = Astro.props;
+
+const site = Astro.site?.toString().replace(/\/$/, "") || "";
+const canonical = site + path;
+const ogImage = site + import.meta.env.BASE_URL.replace(/\/$/, "") + "/og.svg";
+const fullTitle = title === "SentinelCore" ? title : `${title} · SentinelCore`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content="#0a0a0a" />
+    <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/favicon.svg`} type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <Nav />
+    <main id="main"><slot /></main>
+    <Footer />
+  </body>
+</html>

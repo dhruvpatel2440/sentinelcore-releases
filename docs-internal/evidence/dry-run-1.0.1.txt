@@ -1,0 +1,182 @@
+! config file tests/sample-install.conf is world-readable (mode 644) and may hold the admin password — chmod 600 it
+✓ loaded config: tests/sample-install.conf
+
+== SentinelCore installer ==
+version: dev (dev build)
+This installs the SentinelCore stack (Docker Compose) on this host.
+Notice: lab/authorized-network use only. No telemetry. Log: /c/Users/Dhruv/AppData/Local/Temp/sc-dry.log
+
+== Verify package ==
+! no SHA256SUMS (dev tree) — skipping integrity check
+
+== System checks ==
+✗ unsupported OS 'unknown'. Ubuntu 22.04/24.04 required.
+✓ arch: x86_64
+✓ sudo available (will prompt for privileged steps)
+✓ CPU: 12 cores (min 4)
+! RAM: 7876 MB — below minimum 8000 MB
+✓ disk: 167 GB free on / (min 40)
+✓ internet reachable (download.docker.com)
+! [dry-run] one or more REQUIRED checks would fail on a real install
+[dry-run] continuing to preview remaining steps
+
+== Dependencies ==
+! Docker Engine and/or the compose plugin are not installed.
+SentinelCore runs entirely as Docker containers; this is required.
+[dry-run] as_root install -m 0755 -d /etc/apt/keyrings
+[dry-run] as_root curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+[dry-run] as_root chmod a+r /etc/apt/keyrings/docker.asc
+[dry-run] write /etc/apt/sources.list.d/docker.list (deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu <codename> stable)
+[dry-run] as_root apt-get update
+[dry-run] as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+[dry-run] as_root systemctl enable --now docker
+✓ [dry-run] Docker install steps printed
+
+== Sensor detection ==
+detected interfaces (name / state / ipv4):
+  (none detected)
+! [dry-run] interface 'enp0s8' does not exist on this host (a real install stops here)
+✓ interface 'enp0s8' is not the management NIC — suitable for capture
+this enables the Suricata sensor (passive IDS) and the privileged
+helper (nmap discovery, firewall containment) on 'enp0s8'.
+✓ promiscuous capture approved for enp0s8
+
+== Configuration ==
+email notifications: enabled (via relay https://relay.sentinelcore.app)
+
+== Validate inputs ==
+! ss not found — cannot check whether port 8080 is free
+✓ inputs valid
+
+== Email relay registration ==
+registering with relay https://relay.sentinelcore.app (admin: admin@example.org, install: sc-da083d25a6da-285294f5)
+[dry-run] GET  https://relay.sentinelcore.app/v1/health (unreachable -> continue with email off)
+[dry-run] POST https://relay.sentinelcore.app/v1/register {admin_email, install_id, version} -> {token, sender_address}
+[dry-run] relay emails a verification link to admin@example.org; sending is refused until it is clicked
+[dry-run] as_root install -d -m 0755 /opt/sentinelcore
+[dry-run] would write /opt/sentinelcore/.env (mode 600). Rendered keys:
+    POSTGRES_USER=<set>
+    POSTGRES_PASSWORD=<set>
+    POSTGRES_DB=<set>
+    DATABASE_URL=<set>
+    SECRET_KEY=<set>
+    ACCESS_TOKEN_EXPIRE_MINUTES=<set>
+    REFRESH_TOKEN_EXPIRE_DAYS=<set>
+    LOGIN_MAX_ATTEMPTS=<set>
+    LOGIN_LOCKOUT_SECONDS=<set>
+    SEED_ADMIN_USERNAME=<set>
+    SEED_ADMIN_EMAIL=<set>
+    CAPTURE_INTERFACE=<set>
+    MONITORED_NETWORK=<set>
+    PROTECTED_IPS=<set>
+    BIND_ADDRESS=<set>
+    WEB_PORT=<set>
+    TZ=<set>
+    SURICATA_EVE_LOG=<set>
+    REDIS_URL=<set>
+    EVENT_RETENTION_DAYS=<set>
+    ENVIRONMENT=<set>
+    EMAIL_MODE=<set>
+    COMPOSE_PROFILES=<set>
+    RELAY_URL=<set>
+    RELAY_INSTALL_ID=<set>
+    BREVO_API_KEY=<set>
+    EMAIL_SENDER_ADDRESS=<set>
+    EMAIL_SENDER_NAME=<set>
+    EMAIL_REPLY_TO=<set>
+    APP_BASE_URL=<set>
+    EMAIL_ALLOWED_RECIPIENT_DOMAINS=<set>
+    EMAIL_DAILY_CAP_PER_RECIPIENT=<set>
+    EMAIL_GLOBAL_DAILY_CAP=<set>
+    EMAIL_MAX_ATTACHMENT_MB=<set>
+    BREVO_WEBHOOK_SECRET=<set>
+    SSL_CERT_FILE=<set>
+    REQUESTS_CA_BUNDLE=<set>
+    CURL_CA_BUNDLE=<set>
+
+== Stage install directory (/opt/sentinelcore) ==
+! [dry-run] capture interface 'enp0s8' not present here
+[dry-run] mkdir -p /opt/sentinelcore (0755)
+[dry-run] render docker-compose.yml with image tag :dev (from VERSION)
+[dry-run] render suricata.yaml: HOME_NET=[10.20.0.0/24], af-packet interface=enp0s8
+[dry-run] copy nginx.release.conf, frontend-dist/, ca-bundle.pem (system roots), uninstall.sh, enable-email.sh, lib/
+
+== Load Docker images ==
+[dry-run] docker load -i images/sentinelcore-images-dev.tar.gz
+[dry-run] check every image in docker-compose.yml is present (docker image inspect)
+[dry-run] write /etc/systemd/system/sentinelcore-promisc.service and 'systemctl enable --now sentinelcore-promisc.service'
+    [Unit]
+    Description=SentinelCore: promiscuous capture on enp0s8
+    After=network-online.target sys-subsystem-net-devices-enp0s8.device
+    Wants=network-online.target
+    Before=sentinelcore.service
+    
+    [Service]
+    Type=oneshot
+    RemainAfterExit=yes
+    ExecStart=/usr/sbin/ip link set dev enp0s8 promisc on
+    ExecStop=/usr/sbin/ip link set dev enp0s8 promisc off
+    
+    [Install]
+    WantedBy=multi-user.target
+
+== Install-local mail CA + shim certificate ==
+[dry-run] openssl in a private mktemp dir: CA key+cert, leaf key+CSR for CN/SAN=api.brevo.com, sign
+[dry-run] install leaf -> /opt/sentinelcore/tls/api.brevo.com.{crt,key} (dir 700, key 600, owner uid 1000)
+[dry-run] ca.crt -> /opt/sentinelcore/ca.crt + appended to /opt/sentinelcore/ca-bundle.pem; shred CA key
+
+== Start database + cache ==
+[dry-run] dc up -d db redis
+
+== Wait for healthchecks ==
+[dry-run] poll docker inspect .State.Health.Status for: db redis (all must be 'healthy', timeout 300s)
+
+== Create administrator (one-time seed, before first backend start) ==
+[dry-run] SEED_ADMIN_PASSWORD=<redacted> docker compose run --rm --no-deps -e SEED_ADMIN_PASSWORD backend python -m scripts.seed_admin
+[dry-run]   (entrypoint: wait for db -> alembic upgrade head -> seed admin 'admin')
+
+== Start services ==
+[dry-run] dc up -d --remove-orphans
+
+== Wait for healthchecks ==
+[dry-run] poll docker inspect .State.Health.Status for: db redis helper backend worker nginx relay-shim (all must be 'healthy', timeout 300s)
+
+== Verify admin login ==
+[dry-run] POST http://127.0.0.1:8080/api/auth/login (JSON on stdin) — expect HTTP 200
+
+== Enable on boot (systemd) ==
+[dry-run] write /etc/systemd/system/sentinelcore.service and 'systemctl enable sentinelcore.service'
+    [Unit]
+    Description=SentinelCore stack
+    Requires=docker.service
+    After=docker.service network-online.target
+    Wants=network-online.target
+    
+    [Service]
+    Type=oneshot
+    RemainAfterExit=yes
+    WorkingDirectory=/opt/sentinelcore
+    ExecStart=/usr/bin/docker compose -f /opt/sentinelcore/docker-compose.yml --env-file /opt/sentinelcore/.env up -d
+    ExecStop=/usr/bin/docker compose -f /opt/sentinelcore/docker-compose.yml --env-file /opt/sentinelcore/.env stop
+    TimeoutStartSec=0
+    
+    [Install]
+    WantedBy=multi-user.target
+
+== Installation complete ==
+  SentinelCore dev is installed.
+
+  ✓ dependencies   Docker Engine + compose
+  ✓ database       PostgreSQL (container)
+  ✓ sensors        Suricata + helper on enp0s8
+  ✓ environment    /opt/sentinelcore/.env (mode 600)
+  ✓ services       all healthy
+  email            brevo
+  web UI bound to  127.0.0.1:8080
+
+  Admin user  : admin
+  Admin password : the one you chose (verified by a test login)
+
+  Open SentinelCore:  http://127.0.0.1:8080
+  Logs            :  /c/Users/Dhruv/AppData/Local/Temp/sc-dry.log  and  sudo docker compose -f /opt/sentinelcore/docker-compose.yml logs
+  Uninstall       :  sudo /opt/sentinelcore/uninstall.sh   (add --purge to remove data)

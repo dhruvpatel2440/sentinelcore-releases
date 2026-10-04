@@ -1,0 +1,49 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Card from "../components/Card.astro";
+import Badge from "../components/Badge.astro";
+import Callout from "../components/Callout.astro";
+
+const implemented = [
+  ["Suricata IDS sensor", "Passive af-packet capture on a mirrored interface; EVE JSON output. The helper owns Suricata's lifecycle directly."],
+  ["Event pipeline", "A dedicated worker tails eve.json, normalizes and deduplicates alerts into events, with a persisted read offset (Redis)."],
+  ["Correlation engine", "Groups related events into incidents via readable correlation rules on a fixed interval."],
+  ["Incident triage", "Analysts review, assign, escalate and resolve incidents promoted from correlated events."],
+  ["Firewall containment", "Blocks applied via the helper's iptables-nft chain with a mandatory TTL; gateway/DNS/self are never blockable."],
+  ["Asset discovery", "nmap SYN/connect/ping scans and Scapy ARP sweeps across the monitored network, behind the privilege boundary."],
+  ["PCAP analysis", "Upload captures for offline, unprivileged tshark parsing into flows and artifacts."],
+  ["Reporting", "WeasyPrint-rendered PDF reports with a storage volume and retention."],
+  ["Threat intelligence", "IOC feeds with confidence thresholds that can raise incident signal."],
+  ["Email notifications", "21 notification types with preferences, caps, suppression and digests — routed through the central relay."],
+  ["Role-based access", "Admin / analyst roles; first admin created by the app's own seed mechanism at install."],
+  ["Auth hardening", "Argon2 password hashing, short-lived access tokens, refresh cookie scoped to /api/auth, login throttling."],
+];
+---
+<Layout title="Features" path="/features/" description="SentinelCore capabilities — Suricata IDS, event pipeline, correlation, incidents, firewall containment, PCAP analysis, reporting, and threat intel.">
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Capabilities</p>
+      <h1>Features &amp; capabilities</h1>
+      <p class="lead">Everything below is implemented in the shipping stack. Items still on the roadmap are marked.</p>
+
+      <Callout tone="info" title="Honest scope">
+        This list describes what the code actually does today. We mark roadmap items with a
+        <Badge tone="roadmap">Roadmap</Badge> badge rather than implying more than ships.
+      </Callout>
+
+      <div class="grid grid-2" style="margin-top:1.5rem">
+        {implemented.map(([t, d]) => (
+          <Card title={t}><p>{d}</p><p><Badge tone="ok">Implemented</Badge></p></Card>
+        ))}
+        <Card title="HA / multi-node sensors">
+          <p>v1 is single-host by design. Horizontal sensor fan-out is a future direction.</p>
+          <p><Badge tone="roadmap">Roadmap</Badge></p>
+        </Card>
+        <Card title="SSO / external identity">
+          <p>Local accounts today; OIDC/SSO integration is not yet part of the shipping stack.</p>
+          <p><Badge tone="roadmap">Roadmap</Badge></p>
+        </Card>
+      </div>
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,21 @@
+---
+const { tone = "info", title } = Astro.props;
+---
+<div class={`callout callout-${tone}`} role="note">
+  {title && <p class="callout-title">{title}</p>}
+  <div><slot /></div>
+</div>
+
+<style>
+  .callout {
+    border: 1px solid rgb(var(--glass-border)); border-left-width: 4px;
+    border-radius: var(--r-md); padding: 1.1rem 1.25rem; margin: 1.25rem 0;
+    background: rgb(var(--bg-solid)); color: rgb(var(--text-muted));
+  }
+  .callout :global(p:last-child) { margin-bottom: 0; }
+  .callout-title { font-weight: 800; margin: 0 0 0.4rem; color: rgb(var(--text)); text-transform: uppercase; font-size: 0.92rem; letter-spacing: 0.04em; }
+  .callout-info { border-left-color: rgb(var(--c-low)); }
+  .callout-warn { border-left-color: rgb(var(--c-high)); }
+  .callout-danger { border-left-color: rgb(var(--c-red)); }
+  .callout-ok { border-left-color: rgb(var(--c-ok)); }
+</style>

@@ -1,0 +1,48 @@
+---
+// Copy-pasteable command block with a copy button (progressive enhancement).
+const { code = "", label } = Astro.props;
+const text = code || (await Astro.slots.render("default"));
+---
+<div class="code">
+  {label && <span class="code-label">{label}</span>}
+  <pre><code>{text.trim()}</code></pre>
+  <button class="code-copy" type="button" data-code={text.trim()} aria-label="Copy to clipboard">Copy</button>
+</div>
+
+<style>
+  .code {
+    position: relative; margin: 1rem 0;
+    border: 1px solid rgb(var(--glass-border)); border-radius: var(--r-md);
+    background: rgb(var(--c-ink)); color: #e5e5e5;
+  }
+  .code-label {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em;
+    text-transform: uppercase; font-weight: 700; padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid rgb(var(--hairline)); color: rgb(var(--text-muted));
+  }
+  .code-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--c-red)); }
+  pre { margin: 0; padding: 1rem 0.9rem; overflow-x: auto; }
+  code { font-size: 0.88rem; line-height: 1.65; white-space: pre; }
+  .code-copy {
+    position: absolute; top: 0.45rem; right: 0.5rem;
+    font-family: var(--font-sans); font-weight: 700; font-size: 0.72rem;
+    background: rgb(var(--bg-raised)); color: #fff; cursor: pointer;
+    border: 1px solid rgb(var(--outline)); border-radius: 5px; padding: 0.22rem 0.6rem;
+    box-shadow: 2px 2px 0 0 rgb(var(--shadow-color)); transition: transform 80ms, background 120ms;
+  }
+  .code-copy:hover { background: rgb(var(--c-red)); border-color: rgb(var(--c-red)); }
+  .code-copy:active { transform: translate(2px, 2px); box-shadow: none; }
+</style>
+
+<script>
+  document.querySelectorAll(".code-copy").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(btn.getAttribute("data-code") || "");
+        const prev = btn.textContent; btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = prev), 1400);
+      } catch { /* clipboard unavailable */ }
+    });
+  });
+</script>

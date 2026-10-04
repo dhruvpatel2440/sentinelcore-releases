@@ -1,0 +1,82 @@
+== SentinelCore release build ==
+version    : 1.0.1
+flavor     : test
+source     : /c/Users/Dhruv/OneDrive/Desktop/Sentinelcore/Sentinelcore-main (read-only)
+release dir: /c/Users/Dhruv/OneDrive/Desktop/sentinelcore-releases
+relay url  : https://relay.sentinelcore.app
+images     : SKIPPED
+
+-- step 1: prerequisites --
+ok (rsync: no — using tar fallback)
+-- step 2: copy source (allowlist + denylist) --
+  copied: backend helper frontend docker docker-compose.yml
+-- step 3: assemble staging --
+-- step 4: images + static frontend --
+  compose references: nginx:1.27-alpine postgres:16-alpine redis:7.4-alpine sentinelcore/backend:1.0.1 sentinelcore/helper:1.0.1 sentinelcore/relay-shim:1.0.1
+  skipped (TEST BUILD)
+-- step 5: package audit --
+== SentinelCore package audit ==
+target : /c/Users/Dhruv/OneDrive/Desktop/sentinelcore-releases/build/work/stage/sentinelcore-1.0.1
+
+-- release completeness --
+  [ok]   flavor: TEST BUILD (completeness gates relaxed)
+  [ok]   README marked TEST BUILD
+
+-- forbidden files --
+  [ok]   no forbidden files or directories
+
+-- secrets / tokens / lab values / dev paths --
+  [ok]   no token patterns / lab values / dev paths
+
+-- dedicated scanner --
+  [ok]   gitleaks/trufflehog not installed — used regex fallback above
+
+-- high-entropy heuristic --
+  [ok]   no unexplained high-entropy strings
+
+-- docker image inspection --
+  [ok]   docker not available — image scan SKIPPED (run on the build host)
+
+AUDIT PASSED — package is clean.
+-- step 6: checksums + zip --
+
+== manifest ==
+package   : sentinelcore-1.0.1 (test)
+files     : 24
+zip       : /c/Users/Dhruv/OneDrive/Desktop/sentinelcore-releases/dist/sentinelcore-1.0.1-TEST.zip (48K)
+zip sha256: 8fc9d7087ffdc65163e79df8bffd041af15b75b53fa45e3c0c53bfd1eeb1b53b
+images    :
+  (none — TEST BUILD)
+
+staging tree (frontend-dist collapsed):
+sentinelcore-1.0.1
+  README.md
+  SHA256SUMS
+  VERSION
+  docs
+    QUICKSTART.md
+    REQUIREMENTS.md
+  enable-email.sh
+  images
+    NO_IMAGES.txt
+  install.sh
+  lib
+    admin.sh
+    checks.sh
+    config.sh
+    deps.sh
+    product.sh
+    relay.sh
+    secrets.sh
+    sensors.sh
+    services.sh
+    tls.sh
+    ui.sh
+  templates
+    .env.template
+    docker-compose.release.yml
+    nginx.release.conf
+    suricata.yaml.template
+  uninstall.sh
+
+DONE.

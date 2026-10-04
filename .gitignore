@@ -1,0 +1,24 @@
+# Build artifacts
+dist/
+build/work/
+
+# Secrets — never commit
+.env
+*.env
+!build/overlay/templates/.env.template
+
+# Caches
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+
+# Relay dev/runtime artifacts
+relay/.venv/
+relay/**/*.db
+relay/**/*.db-wal
+relay/**/*.db-shm
+.pytest_cache/
+
+# The prompt pack is reference only
+prompts/

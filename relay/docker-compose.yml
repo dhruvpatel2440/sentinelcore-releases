@@ -1,0 +1,22 @@
+# Relay server compose — runs on the OWNER's host (a small VPS), NOT on the
+# customer box. Provider credentials come from the server env (see .env.example).
+services:
+  relay:
+    build: .
+    image: sentinelcore/relay:latest
+    env_file: .env
+    environment:
+      RELAY_DB_PATH: /data/relay.db
+    volumes:
+      - relay_data:/data
+    ports:
+      - "8080:8080"      # front with a TLS-terminating reverse proxy in prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  relay_data:

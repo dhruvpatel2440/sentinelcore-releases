@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "website", "run", "dev", "--", "--port", "4321"],
+      "port": 4321
+    },
+    {
+      "name": "website-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4322", "--bind", "127.0.0.1", "--directory", "website/dist"],
+      "port": 4322
+    }
+  ]
+}

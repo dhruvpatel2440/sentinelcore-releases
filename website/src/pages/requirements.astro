@@ -1,0 +1,54 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Callout from "../components/Callout.astro";
+const rows = [
+  ["Operating system", "Ubuntu 22.04 LTS x86_64", "Ubuntu 24.04 LTS x86_64"],
+  ["CPU", "4 cores", "8+ cores"],
+  ["RAM", "8 GB", "16 GB"],
+  ["Disk (free)", "40 GB", "100+ GB SSD"],
+  ["Capture NIC", "1 management + 1 capture", "dedicated SPAN/mirror port"],
+  ["Container runtime", "Docker Engine + Compose v2", "current stable"],
+  ["Privilege", "root/sudo for install", "same"],
+  ["Host ports", "80 free", "80 free"],
+];
+---
+<Layout title="System requirements" path="/requirements/" description="SentinelCore system requirements: Ubuntu 22.04/24.04 x86_64, CPU/RAM/disk, Docker, capture interface and ports.">
+  <section class="section">
+    <div class="container">
+      <p class="eyebrow">Before you install</p>
+      <h1>System requirements</h1>
+      <p class="lead">SentinelCore runs as one Docker Compose stack on a single Linux host.</p>
+
+      <div class="tablewrap nb">
+        <table>
+          <thead><tr><th>Resource</th><th>Minimum</th><th>Recommended</th></tr></thead>
+          <tbody>
+            {rows.map(([r, mn, rc]) => (<tr><th scope="row">{r}</th><td>{mn}</td><td>{rc}</td></tr>))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 style="margin-top:2rem">Network interface notes</h2>
+      <p>The capture interface must see the traffic you intend to monitor. On a switch, use a mirror/SPAN port. Capturing on the management NIC only sees host-local traffic.</p>
+
+      <Callout tone="danger" title="Native Linux only">
+        The privileged sensor/helper needs Linux host networking. Docker Desktop on macOS/Windows and
+        WSL are <strong>not supported</strong> — run on native Linux or a Linux VM with a bridged/mirrored adapter.
+      </Callout>
+
+      <h2 style="margin-top:2rem">Outbound</h2>
+      <p>The only outbound dependency is the optional SentinelCore email relay over HTTPS. Everything else runs locally.</p>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .tablewrap { margin-top: 1.5rem; overflow-x: auto; background: rgb(var(--bg-solid)); border: 1px solid rgb(var(--glass-border)); border-radius: var(--r-md); }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; }
+  th, td { text-align: left; padding: 0.9rem 1.1rem; border-bottom: 1px solid rgb(var(--hairline)); }
+  thead th { background: rgb(var(--bg-raised)); color: #fff; text-transform: uppercase; font-size: 0.78rem; letter-spacing: 0.1em; border-bottom: 2px solid rgb(var(--c-red)); }
+  tbody th { font-weight: 700; }
+  tbody tr:hover { background: rgb(255 255 255 / 0.02); }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  td { color: rgb(var(--text-muted)); }
+</style>

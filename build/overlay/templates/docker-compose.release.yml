@@ -1,0 +1,224 @@
+# SentinelCore release compose — production profile.
+#
+# Differences from the dev compose (all overlay, no source edits):
+#   * No ./backend, ./frontend bind mounts — code is baked into the images.
+#   * No uvicorn --reload; no Vite dev server. Frontend is static, served by nginx.
+#   * Pinned image tags (loaded from the offline tarball), not `build:`.
+#   * Healthchecks on backend/worker/nginx in addition to db/redis.
+#   * Relay shim sidecar aliased to api.brevo.com for central mail routing.
+#
+#   * Web UI bound to ${BIND_ADDRESS}:${WEB_PORT} (installer-chosen, default 127.0.0.1).
+#   * relay-shim only runs with the "email" profile (COMPOSE_PROFILES=email in .env).
+#
+# __VERSION__ is substituted by the INSTALLER from the package VERSION file at
+# install time (never hardcoded here). Images come from the bundled tarball;
+# sentinelcore/* images are never pulled from a registry (pull_policy: never).
+
+networks:
+  sentinelcore-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  helper_socket:
+  rule_staging:
+  suricata_rules:
+  suricata_logs:
+  suricata_run:
+  report_storage:
+  pcap_storage:
+
+services:
+  db:
+    image: postgres:16-alpine
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - sentinelcore-network
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - sentinelcore-network
+
+  helper:
+    image: sentinelcore/helper:__VERSION__
+    pull_policy: never
+    env_file: .env
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+      - CHOWN
+    volumes:
+      - helper_socket:/run/sentinelcore
+      - suricata_rules:/var/lib/suricata/rules
+      - rule_staging:/var/lib/sentinelcore/staging
+      - suricata_logs:/var/log/suricata
+      - suricata_run:/var/run/suricata
+      - ./suricata.yaml:/etc/suricata/suricata.yaml:ro
+    # Healthy once the privileged helper has bound its Unix socket.
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/sentinelcore/helper.sock"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    network_mode: host
+
+  backend:
+    image: sentinelcore/backend:__VERSION__
+    pull_policy: never
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      HELPER_SOCKET_PATH: /run/sentinelcore/helper.sock
+    # Production: no --reload.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - helper_socket:/run/sentinelcore
+      - rule_staging:/var/lib/sentinelcore/staging
+      - suricata_logs:/var/log/suricata:ro
+      - report_storage:/var/lib/sentinelcore/reports
+      - pcap_storage:/var/lib/sentinelcore/pcap
+      # Install-local CA bundle so the hardcoded api.brevo.com egress trusts
+      # the relay shim. Mounted read-only.
+      - ./ca-bundle.pem:/etc/sentinelcore/ca-bundle.pem:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sentinelcore-network
+
+  worker:
+    image: sentinelcore/backend:__VERSION__
+    pull_policy: never
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      RUN_MIGRATIONS: "false"
+      HELPER_SOCKET_PATH: /run/sentinelcore/helper.sock
+    command: ["python", "-m", "app.pipeline.worker"]
+    volumes:
+      - suricata_logs:/var/log/suricata:ro
+      - report_storage:/var/lib/sentinelcore/reports
+      - pcap_storage:/var/lib/sentinelcore/pcap
+      - helper_socket:/run/sentinelcore
+      - ./ca-bundle.pem:/etc/sentinelcore/ca-bundle.pem:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f app.pipeline.worker >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sentinelcore-network
+
+  # Mail bridge: looks exactly like api.brevo.com to the backend, forwards to
+  # the central SentinelCore relay over real TLS. Built in Phase 05; the image
+  # tag is loaded from the offline tarball. The network alias is what makes the
+  # backend's hardcoded https://api.brevo.com resolve here.
+  relay-shim:
+    image: sentinelcore/relay-shim:__VERSION__
+    pull_policy: never
+    # Only started when email is enabled (COMPOSE_PROFILES=email in .env).
+    profiles: ["email"]
+    # The shim needs ONLY the relay URL; it must not see the app's secrets.
+    environment:
+      # Product-level relay URL, written to .env by the installer.
+      RELAY_URL: ${RELAY_URL:?RELAY_URL must be set in .env}
+    volumes:
+      # Leaf cert + key for CN=api.brevo.com ONLY (no CA key on the box).
+      - ./tls:/tls:ro
+    expose:
+      - "443"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 443), 3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      sentinelcore-network:
+        aliases:
+          - api.brevo.com
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx.release.conf:/etc/nginx/conf.d/default.conf:ro
+      # Static frontend build, baked by build-release.sh into this named volume
+      # via the frontend image, or bind-mounted from the install dir.
+      - ./frontend-dist:/usr/share/nginx/html:ro
+    ports:
+      # Installer-chosen bind address + port (default 127.0.0.1:80).
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    networks:
+      - sentinelcore-network

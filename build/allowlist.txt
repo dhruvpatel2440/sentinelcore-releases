@@ -1,0 +1,14 @@
+# Allowlist — top-level paths copied from SOURCE_DIR into build/work/src/
+# (the Docker build context). This copy is NEVER shipped; images are built
+# from it and only the resulting image tarballs ship. One path per line.
+# Lines starting with # and blank lines are ignored.
+#
+# Keep this list minimal: only what the backend/helper/frontend images and
+# the templated configs need. Everything else is excluded by omission AND by
+# denylist.txt (belt and suspenders).
+
+backend
+helper
+frontend
+docker
+docker-compose.yml

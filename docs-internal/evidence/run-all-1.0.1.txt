@@ -1,0 +1,72 @@
+
+========== shellcheck -S warning ==========
+PASS: shellcheck clean
+
+========== bats tests/ ==========
+1..26
+ok 1 valid_email accepts normal addresses, rejects junk
+ok 2 valid_username enforces rules
+ok 3 strong_password: 12+ mixed classes; any symbol allowed
+ok 4 ipv4 / cidr / port validators are strict
+ok 5 bind_address_ok accepts loopback/any, rejects foreign addresses
+ok 6 port check: busy port is rejected, free port accepted
+ok 7 ui_host / ui_url use the chosen bind + port
+ok 8 load_config_file: allowlisted keys load, quotes stripped
+ok 9 load_config_file: rejects unknown keys and command-injection keys
+ok 10 load_config_file: warns when world-readable
+ok 11 render_env: all placeholders filled, A5/A6 keys rendered, no password
+ok 12 render_env: email on sets profile + relay token
+ok 13 render_env: file mode is 600 (on POSIX filesystems) # skip NTFS cannot express mode 600
+ok 14 set_env_value replaces one key and keeps the rest
+ok 15 render_suricata renders HOME_NET and the chosen capture NIC
+ok 16 wait_healthy: 'unhealthy' is NOT healthy (no substring match)
+ok 17 wait_healthy: passes only when every service is healthy
+ok 18 wait_healthy: relay-shim is required when email is on
+ok 19 seed: tricky passwords reach the container env byte-for-byte, never argv
+ok 20 seed: fails loudly if the app generated its own password
+ok 21 verify_login: JSON body on stdin decodes to the exact password; argv clean
+ok 22 verify_login: non-interactive hard-fails on 401 after one re-apply
+ok 23 gen_admin_password always satisfies strong_password
+ok 24 log: no secret value ever reaches the install log
+ok 25 gen_install_ca: leaf for api.brevo.com issued, CA key destroyed, bundle has CA
+ok 26 gen_install_ca: no-op when email is off
+PASS: bats
+
+========== selftest (dependency-free mirror) ==========
+PASS: selftest
+
+========== installer dry-run (non-interactive) ==========
+PASS: dry-run
+
+========== relay tests (pytest) ==========
+................                                                         [100%]
+16 passed in 9.12s
+PASS: relay pytest
+
+========== relay local smoke (real HTTP) ==========
+relay smoke against http://127.0.0.1:8099
+  ok   health (HTTP 200)
+2026-10-04 14:07:24,718 INFO relay registered install_id=smoke-001 ip=127.0.0.1 (pending verification)
+  ok   register (HTTP 200)
+  ok   token issued
+  ok   send before verify is refused (HTTP 403)
+2026-10-04 14:07:25,198 INFO relay verified install_id=smoke-001
+  ok   verify via emailed GET link (HTTP 200)
+2026-10-04 14:07:25,300 INFO relay sent install_id=smoke-001 tag=E01 mid=fake-426a6b657341
+  ok   send after verify (HTTP 200)
+2026-10-04 14:07:25,410 INFO relay revoked install_id=smoke-001
+  ok   revoke (admin) (HTTP 200)
+  ok   send after revoke is rejected (HTTP 403)
+  ok   admin endpoint needs secret (HTTP 401)
+RESULT: 9 passed, 0 failed
+PASS: relay smoke
+
+========== package audit (latest dist zip) ==========
+PASS: audit sentinelcore-1.0.1-TEST.zip
+
+========== website link check (if built) ==========
+[check-links] checked 153 internal links across 9 pages; 0 broken
+PASS: links
+
+========== RESULT ==========
+ALL RUNNABLE CHECKS PASSED

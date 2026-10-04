@@ -1,0 +1,30 @@
+# Copied into build/work/src/.dockerignore before any `docker build`.
+# Keeps secrets, VCS, tests and dev cruft out of EVERY image build context,
+# independent of the denylist prune (defense in depth).
+
+**/.env
+**/.env.*
+**/*.env
+**/.env.example
+.git
+.github
+**/.gitignore
+**/tests
+**/pytest.ini
+**/scripts/smoke_*.py
+**/scripts/e2e_*.py
+CLAUDE.md
+Modules
+updates
+validation
+TEST_REPORT.md
+TEST_REPORT.docx
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.vite
+**/*.timestamp-*.mjs
+**/*.pcap
+**/*.log
+dist
